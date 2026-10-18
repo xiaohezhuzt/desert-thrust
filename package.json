@@ -1,0 +1,37 @@
+{
+  "name": "desert-thrust",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "sim": "tsx scripts/sim.ts",
+    "sim:level": "tsx scripts/sim-level.ts",
+    "icons": "node scripts/make-icons.mjs",
+    "serve": "node server/index.mjs",
+    "start": "npm run build && node server/index.mjs",
+    "dev:server": "PORT=8787 node server/index.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "postprocessing": "^6.39.5",
+    "three": "^0.186.1",
+    "three-bvh-csg": "^0.0.18",
+    "three-mesh-bvh": "^0.9.16",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

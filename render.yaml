@@ -1,0 +1,12 @@
+# Render Blueprint: one free Node web service = game files + multiplayer WebSocket (/ws).
+services:
+  - type: web
+    name: desert-thrust
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run serve
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
