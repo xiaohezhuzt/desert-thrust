@@ -258,6 +258,14 @@ function createPaint(opts: CarModelOptions): THREE.MeshStandardMaterial {
   return m;
 }
 
+/** Show or hide the cabin (seats, dash, wheel): hidden from the driver's own eye view. */
+export function setCarInterior(root: THREE.Object3D, visible: boolean): void {
+  root.traverse((o) => {
+    const mats = (o as Partial<THREE.Mesh>).material;
+    for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) if (m.name === 'interior') m.visible = visible;
+  });
+}
+
 /** Repaint every body-colour material under a car. */
 export function setCarPaint(root: THREE.Object3D, color: THREE.ColorRepresentation): void {
   root.traverse((o) => {
@@ -434,6 +442,8 @@ export function createVoltR(opts: CarModelOptions): CarRig {
   });
   const leather = new THREE.MeshStandardMaterial({ color: 0x1d1d20, roughness: 0.7 });
   const trim = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.35, metalness: 0.7 });
+  // Cabin parts are hidden in the first-person view (see setCarInterior).
+  leather.name = trim.name = 'interior';
   const seam = new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.8 });
   const lamp = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xeaf6ff, emissiveIntensity: 3 });
   const tailLamp = new THREE.MeshStandardMaterial({ color: 0x400008, emissive: 0xff1a2a, emissiveIntensity: 4 });
@@ -460,10 +470,15 @@ export function createVoltR(opts: CarModelOptions): CarRig {
   }
   body.add(box(leather, 1.3, 0.1, 0.4, 0, 0.9, -0.3));
   body.add(box(trim, 0.16, 0.08, 0.9, 0, 0.88, 0.2));
-  const yoke = box(trim, 0.32, 0.1, 0.03, -0.33, 0.99, -0.02);
+  const yoke = box(trim, 0.3, 0.08, 0.03, -0.33, 0.93, -0.06);
   yoke.rotation.x = 0.35;
-  body.add(yoke, box(trim, 0.04, 0.04, 0.2, -0.33, 0.95, -0.12));
-  body.add(box(new THREE.MeshStandardMaterial({ color: 0x0a0c10, emissive: 0x2a4a6a, emissiveIntensity: 0.6, roughness: 0.2 }), 0.42, 0.24, 0.02, 0, 1.0, -0.18));
+  body.add(yoke, box(trim, 0.04, 0.04, 0.18, -0.33, 0.91, -0.16));
+  // Centre screen low on the dash so it never blocks the driver's view.
+  const screenMat = new THREE.MeshStandardMaterial({ color: 0x0a0c10, emissive: 0x2a4a6a, emissiveIntensity: 0.6, roughness: 0.2 });
+  screenMat.name = 'interior';
+  const screen = box(screenMat, 0.3, 0.16, 0.02, 0, 0.98, -0.32);
+  screen.rotation.x = -0.3;
+  body.add(screen);
 
   // Camera wings in place of mirrors on the A-pillars.
   for (const side of [-1, 1]) {

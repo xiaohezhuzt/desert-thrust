@@ -167,7 +167,7 @@ export class HUD {
   }
 
   setCameraMode(mode: 'chase' | 'cockpit'): void {
-    this.cameraBtn.innerHTML = `<span class="ico">🎥</span>${mode === 'chase' ? '第三人称' : '第一人称'}`;
+    this.cameraBtn.innerHTML = `<span class="ico">🎥</span>${mode === 'chase' ? '第三视角' : '第一视角'}`;
   }
 
   setAutoThrottle(on: boolean): void {

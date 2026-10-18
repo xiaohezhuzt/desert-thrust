@@ -10,17 +10,19 @@ import { SkyDome } from '../Sky';
 import { canvasTexture } from '../Textures';
 import { applyLighting, distToLines, type Biome, type BiomeContext } from './common';
 
-/** Late-afternoon sun over a real-looking downtown. */
-const AFTERNOON = {
-  sky: { top: 0x3f7fd0, horizon: 0xe9dcc8, bottom: 0x9a9a98 },
-  fog: 0xc9cfd6,
-  sunColor: 0xfff0d8,
-  sunIntensity: 3.1,
-  hemiSky: 0xcfe0ff,
-  hemiGround: 0x6d6a66,
-  hemiIntensity: 0.75,
-  envIntensity: 1.0,
+/** Downtown at night: moonlight, sodium street lamps, lit windows and shopfronts. */
+const NIGHT = {
+  sky: { top: 0x03050d, horizon: 0x1c2440, bottom: 0x0b0d14 },
+  fog: 0x121624,
+  sunColor: 0x8fa2d6,
+  sunIntensity: 0.55,
+  hemiSky: 0x40507a,
+  hemiGround: 0x2a2420,
+  hemiIntensity: 0.45,
+  envIntensity: 0.35,
 };
+/** Warm street-lamp colour (light pools and lamp heads). */
+const LAMP = new THREE.Color(1, 0.72, 0.38);
 
 /** Street centre lines of the city grid. The course follows some of them. */
 const X_STREETS = [-520, -390, -260, -130, 0, 130, 260, 390];
@@ -44,43 +46,54 @@ function rng2(seed: number): () => number {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
-function glassFacade(): THREE.CanvasTexture {
+/** Office lights: the same windows lit in the colour map and the matching glow map. */
+const WARM = ['#ffd9a0', '#fff0d0', '#cfe6ff', '#ffe6b8'];
+
+function glassFacade(glow = false): THREE.CanvasTexture {
   return canvasTexture(512, (ctx, s) => {
     const r = rng2(11);
     const g = ctx.createLinearGradient(0, 0, 0, s);
-    g.addColorStop(0, '#6d8aa8');
-    g.addColorStop(1, '#2d3f55');
-    ctx.fillStyle = g;
+    g.addColorStop(0, '#3a4a5e');
+    g.addColorStop(1, '#1a2533');
+    ctx.fillStyle = glow ? '#000' : g;
     ctx.fillRect(0, 0, s, s);
     const cols = 8;
     const rows = 8;
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const v = 0.75 + r() * 0.35;
-        ctx.fillStyle = `rgba(${Math.round(120 * v)},${Math.round(150 * v)},${Math.round(180 * v)},0.55)`;
-        ctx.fillRect((x * s) / cols + 2, (y * s) / rows + 2, s / cols - 4, s / rows - 4);
-        if (r() < 0.12) {
-          ctx.fillStyle = 'rgba(255,236,200,0.35)';
+        const lit = r() < 0.38;
+        const warm = WARM[Math.floor(r() * WARM.length)]!;
+        if (!glow) {
+          ctx.fillStyle = `rgba(${Math.round(70 * v)},${Math.round(90 * v)},${Math.round(115 * v)},0.6)`;
+          ctx.fillRect((x * s) / cols + 2, (y * s) / rows + 2, s / cols - 4, s / rows - 4);
+        }
+        if (lit) {
+          ctx.fillStyle = glow ? warm : 'rgba(255,236,200,0.5)';
           ctx.fillRect((x * s) / cols + 4, (y * s) / rows + 6, s / cols - 8, s / rows - 12);
         }
       }
     }
     // Mullions and floor slabs.
-    ctx.fillStyle = '#1d242d';
+    ctx.fillStyle = glow ? '#000' : '#141a22';
     for (let x = 0; x <= cols; x++) ctx.fillRect((x * s) / cols - 2, 0, 4, s);
-    ctx.fillStyle = '#c9ccd0';
+    ctx.fillStyle = glow ? '#000' : '#7d8288';
     for (let y = 0; y <= rows; y++) ctx.fillRect(0, (y * s) / rows - 3, s, 5);
   });
 }
 
-function officeFacade(): THREE.CanvasTexture {
+function officeFacade(glow = false): THREE.CanvasTexture {
   return canvasTexture(512, (ctx, s) => {
     const r = rng2(23);
-    ctx.fillStyle = '#d8d2c6';
+    ctx.fillStyle = glow ? '#000' : '#d8d2c6';
     ctx.fillRect(0, 0, s, s);
     for (let i = 0; i < 3000; i++) {
-      ctx.fillStyle = `rgba(0,0,0,${r() * 0.05})`;
-      ctx.fillRect(r() * s, r() * s, 2, 2);
+      const a = r() * 0.05;
+      const x = r() * s;
+      const y = r() * s;
+      if (glow) continue;
+      ctx.fillStyle = `rgba(0,0,0,${a})`;
+      ctx.fillRect(x, y, 2, 2);
     }
     const cols = 6;
     const rows = 8;
@@ -90,29 +103,32 @@ function officeFacade(): THREE.CanvasTexture {
         const py = (y * s) / rows + 12;
         const w = s / cols - 24;
         const h = s / rows - 22;
-        ctx.fillStyle = '#9b958a';
+        ctx.fillStyle = glow ? '#000' : '#9b958a';
         ctx.fillRect(px - 3, py - 3, w + 6, h + 8);
-        const lit = r() < 0.18;
+        const lit = r() < 0.42;
         const gg = ctx.createLinearGradient(px, py, px + w, py + h);
-        gg.addColorStop(0, lit ? '#e9d6aa' : '#5c7088');
-        gg.addColorStop(1, lit ? '#b89b62' : '#2a3442');
+        gg.addColorStop(0, lit ? '#f6dca8' : glow ? '#000' : '#3c4a5c');
+        gg.addColorStop(1, lit ? '#c99b5a' : glow ? '#000' : '#1a222c');
         ctx.fillStyle = gg;
         ctx.fillRect(px, py, w, h);
-        ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx.fillRect(px, py, w * 0.35, h);
+        if (!glow) {
+          ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          ctx.fillRect(px, py, w * 0.35, h);
+        }
       }
     }
   });
 }
 
-function brickFacade(): THREE.CanvasTexture {
+function brickFacade(glow = false): THREE.CanvasTexture {
   return canvasTexture(512, (ctx, s) => {
     const r = rng2(37);
-    ctx.fillStyle = '#8a4a36';
+    ctx.fillStyle = glow ? '#000' : '#8a4a36';
     ctx.fillRect(0, 0, s, s);
     for (let y = 0; y < s; y += 8) {
       for (let x = (y / 8) % 2 ? -8 : 0; x < s; x += 16) {
         const v = 0.8 + r() * 0.35;
+        if (glow) continue;
         ctx.fillStyle = `rgb(${Math.round(150 * v)},${Math.round(78 * v)},${Math.round(58 * v)})`;
         ctx.fillRect(x + 1, y + 1, 14, 6);
       }
@@ -125,11 +141,12 @@ function brickFacade(): THREE.CanvasTexture {
         const py = (y * s) / rows + 16;
         const w = s / cols - 44;
         const h = s / rows - 34;
-        ctx.fillStyle = '#ece6da';
+        ctx.fillStyle = glow ? '#000' : '#ece6da';
         ctx.fillRect(px - 5, py - 5, w + 10, h + 12);
-        ctx.fillStyle = r() < 0.2 ? '#d9bd86' : '#36414f';
+        const lit = r() < 0.45;
+        ctx.fillStyle = lit ? '#f2c98a' : glow ? '#000' : '#232a34';
         ctx.fillRect(px, py, w, h);
-        ctx.fillStyle = '#ece6da';
+        ctx.fillStyle = glow ? '#000' : '#ece6da';
         ctx.fillRect(px + w / 2 - 2, py, 4, h);
         ctx.fillRect(px, py + h / 2 - 2, w, 4);
       }
@@ -406,7 +423,7 @@ export function buildCity(ctx: BiomeContext): Biome {
   asphalt.anisotropy = renderer.maxAnisotropy;
   const groundMesh = new THREE.Mesh(
     keep(new THREE.PlaneGeometry(2200, 2200).rotateX(-Math.PI / 2)),
-    keep(new THREE.MeshStandardMaterial({ map: asphalt, color: 0xb8b8b8, roughness: 0.92 })),
+    keep(new THREE.MeshStandardMaterial({ map: asphalt, color: 0x9a9a9a, roughness: 0.7, metalness: 0.1 })),
   );
   groundMesh.position.y = -0.03;
   groundMesh.receiveShadow = true;
@@ -416,20 +433,20 @@ export function buildCity(ctx: BiomeContext): Biome {
   const pave = keep(pavementTexture());
   pave.wrapS = pave.wrapT = THREE.RepeatWrapping;
   const paveMat = keep(new THREE.MeshStandardMaterial({ map: pave, roughness: 0.9 }));
-  const facadeTex = [glassFacade(), officeFacade(), brickFacade()].map((t) => {
+  const prep = (t: THREE.CanvasTexture): THREE.CanvasTexture => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = renderer.maxAnisotropy;
     return keep(t);
-  });
-  const facadeMats = [
-    keep(new THREE.MeshStandardMaterial({ map: facadeTex[0], roughness: 0.18, metalness: 0.55 })),
-    keep(new THREE.MeshStandardMaterial({ map: facadeTex[1], roughness: 0.75 })),
-    keep(new THREE.MeshStandardMaterial({ map: facadeTex[2], roughness: 0.85 })),
-  ];
+  };
+  const facadeTex = [glassFacade(), officeFacade(), brickFacade()].map(prep);
+  const glowTex = [glassFacade(true), officeFacade(true), brickFacade(true)].map(prep);
+  const lit = (k: number, extra: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial =>
+    keep(new THREE.MeshStandardMaterial({ map: facadeTex[k], emissive: 0xffffff, emissiveMap: glowTex[k], emissiveIntensity: 0.85, ...extra }));
+  const facadeMats = [lit(0, { roughness: 0.18, metalness: 0.55 }), lit(1, { roughness: 0.75 }), lit(2, { roughness: 0.85 })];
   const facadeTile: [number, number][] = [[24, 28], [21, 28], [17, 21]];
   const shopTex = keep(shopFacade());
   shopTex.wrapS = THREE.RepeatWrapping;
-  const shopMat = keep(new THREE.MeshStandardMaterial({ map: shopTex, roughness: 0.4, emissive: 0xffffff, emissiveMap: shopTex, emissiveIntensity: 0.18 }));
+  const shopMat = keep(new THREE.MeshStandardMaterial({ map: shopTex, roughness: 0.4, emissive: 0xffffff, emissiveMap: shopTex, emissiveIntensity: 0.85 }));
   const roofMat = keep(new THREE.MeshStandardMaterial({ color: 0x55575b, roughness: 0.95 }));
   const trimMat = keep(new THREE.MeshStandardMaterial({ color: 0xa9a49a, roughness: 0.8 }));
 
@@ -577,8 +594,15 @@ export function buildCity(ctx: BiomeContext): Biome {
     box(facadeGeos[1]!, texturedBox(w, h - clear, d, facadeTile[1]![0], facadeTile[1]![1]), cx, clear + (h - clear) / 2, z);
     box(roofGeos, new THREE.BoxGeometry(w + 0.4, 0.6, d + 0.4), cx, h + 0.3, z);
     box(trimGeos, new THREE.BoxGeometry(w + 1, 1.2, d + 1), cx, clear + 0.6, z);
-    // Ceiling seen from below, and columns on the pavements.
+    // Ceiling seen from below with strip lights, and columns on the pavements.
     box(roofGeos, new THREE.BoxGeometry(w, 0.3, d), cx, clear - 0.15, z);
+    const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.9, 2.4) });
+    keep(strip);
+    for (let x = x0 + 4; x < x1; x += 8) {
+      const m = new THREE.Mesh(keep(new THREE.BoxGeometry(2.4, 0.06, 0.3)), strip);
+      m.position.set(x, clear - 0.33, z);
+      group.add(m);
+    }
     solid(cx, clear + (h - clear) / 2, z, w / 2, (h - clear) / 2, d / 2);
     for (let x = x0 + 3; x <= x1 - 3; x += (w - 6) / 3) {
       for (const side of [-1, 1]) {
@@ -615,7 +639,7 @@ export function buildCity(ctx: BiomeContext): Biome {
   // A train gliding along the viaduct.
   const train = new THREE.Group();
   const trainBody = keep(new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.35, metalness: 0.4 }));
-  const trainGlass = keep(new THREE.MeshStandardMaterial({ color: 0x1f2a36, roughness: 0.1, metalness: 0.7 }));
+  const trainGlass = keep(new THREE.MeshStandardMaterial({ color: 0x1f2a36, roughness: 0.1, metalness: 0.4, emissive: 0xfff1d0, emissiveIntensity: 1.1 }));
   const trainStripe = keep(new THREE.MeshStandardMaterial({ color: 0x1f6fb2, roughness: 0.5 }));
   for (let k = 0; k < 4; k++) {
     const car = new THREE.Mesh(keep(new THREE.BoxGeometry(3, 3.4, 17)), trainBody);
@@ -705,7 +729,10 @@ export function buildCity(ctx: BiomeContext): Biome {
   group.add(zebraMesh, dashMesh);
 
   // ---- Street trees, lamps, traffic lights --------------------------------------
-  const treeMesh = new THREE.InstancedMesh(keep(roundTree(0x356b2e, 0x7fb04f, 5)), keep(propMaterial()), trees.length);
+  const treeMat = keep(propMaterial());
+  // Night: foliage only catches lamplight.
+  treeMat.color.setRGB(0.45, 0.5, 0.45);
+  const treeMesh = new THREE.InstancedMesh(keep(roundTree(0x2c5a28, 0x5e8a3e, 5)), treeMat, trees.length);
   trees.forEach((x, i) => treeMesh.setMatrixAt(i, x));
   treeMesh.castShadow = true;
   group.add(treeMesh);
@@ -720,7 +747,7 @@ export function buildCity(ctx: BiomeContext): Biome {
   const lampMesh = new THREE.InstancedMesh(lampGeo, metal, lamps.length);
   const headMesh = new THREE.InstancedMesh(
     keep(new THREE.BoxGeometry(0.5, 0.18, 0.9).translate(0, 8.3, 2.5)),
-    keep(new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xffe2b0, emissiveIntensity: 0.6 })),
+    keep(new THREE.MeshBasicMaterial({ color: LAMP.clone().multiplyScalar(4) })),
     lamps.length,
   );
   lamps.forEach((x, i) => {
@@ -729,6 +756,37 @@ export function buildCity(ctx: BiomeContext): Biome {
   });
   lampMesh.castShadow = true;
   group.add(lampMesh, headMesh);
+
+  // Pools of warm light on the road under every lamp (and fainter ones on side streets).
+  const poolTex = keep(
+    canvasTexture(128, (c, sz) => {
+      const gr = c.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+      gr.addColorStop(0, 'rgba(255,255,255,1)');
+      gr.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gr;
+      c.fillRect(0, 0, sz, sz);
+    }),
+  );
+  const pools: THREE.Matrix4[] = [];
+  const lampHead = new THREE.Vector3();
+  for (const x of lamps) {
+    lampHead.set(0, 0, 2.5).applyMatrix4(x);
+    pools.push(mm.compose(new THREE.Vector3(lampHead.x, 0.06, lampHead.z), qq.identity(), new THREE.Vector3(15, 1, 15)).clone());
+  }
+  for (const x of trees) {
+    if (rng() < 0.6) continue;
+    const p = new THREE.Vector3().setFromMatrixPosition(x);
+    pools.push(mm.compose(new THREE.Vector3(p.x, CURB + 0.05, p.z), qq.identity(), new THREE.Vector3(9, 1, 9)).clone());
+  }
+  const poolMesh = new THREE.InstancedMesh(
+    keep(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)),
+    keep(new THREE.MeshBasicMaterial({ map: poolTex, color: LAMP.clone().multiplyScalar(0.55), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6 })),
+    pools.length,
+  );
+  pools.forEach((x, i) => poolMesh.setMatrixAt(i, x));
+  poolMesh.renderOrder = 1;
+  group.add(poolMesh);
 
   // Traffic signals at the corners of junctions on the course.
   const signals: THREE.Matrix4[] = [];
@@ -826,10 +884,11 @@ export function buildCity(ctx: BiomeContext): Biome {
   });
 
   // ---- Sky and light ------------------------------------------------------------
-  const sky = new SkyDome(AFTERNOON.sky);
-  sky.setSun(new THREE.Vector3(-60, 90, 40), 0xfff0d8, 0.5, 0.9996);
+  const sky = new SkyDome(NIGHT.sky);
+  // A small pale moon.
+  sky.setSun(new THREE.Vector3(-60, 90, 40), 0xdfe6ff, 0.25, 0.99985);
   group.add(sky.mesh);
-  applyLighting(renderer, AFTERNOON);
+  applyLighting(renderer, NIGHT);
 
   let trainZ = METRO.z0;
   let trainDir = -1;

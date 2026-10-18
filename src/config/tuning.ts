@@ -166,7 +166,8 @@ export const CAMERA_TUNING = {
   /** vertical follow is softer so landings don't jolt the view */
   heightStiffness: 4,
   /** cockpit camera position in car-local space */
-  cockpitOffset: [0, 0.98, 0.15] as const,
+  /** driver's eye: left seat, just under the roof, clear of the wheel and centre screen */
+  cockpitOffset: [-0.33, 1.07, 0.42] as const,
 } as const;
 
 export const MS_TO_KMH = 3.6;

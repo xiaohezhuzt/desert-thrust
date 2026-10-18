@@ -32,7 +32,7 @@ import { resultScreen } from '../ui/ResultScreen';
 import { settingsScreen } from '../ui/Settings';
 import { TouchControls } from '../ui/TouchControls';
 import { CarController } from '../vehicle/CarController';
-import { createVoltR, setCarPaint } from '../vehicle/CarModelFactory';
+import { createVoltR, setCarInterior, setCarPaint } from '../vehicle/CarModelFactory';
 import { LandingJudge } from '../vehicle/LandingJudge';
 import { createOpponentCar, opponentGeometry } from '../vehicle/OpponentModel';
 import { Thrusters } from '../vehicle/Thrusters';
@@ -99,6 +99,7 @@ export class Game {
   private readonly car: CarController;
   private readonly carRoot: THREE.Object3D;
   private readonly carBody: THREE.Object3D;
+  private readonly headlight: THREE.SpotLight;
   private readonly chase: ChaseCamera;
   private readonly thrusters: Thrusters | null;
   private readonly landing = new LandingJudge();
@@ -122,6 +123,11 @@ export class Game {
   private stepCount = 0;
   private blur = 0;
   private menuAngle = 0;
+  /** The boarding shot is on screen (switch to the chase camera when it ends). */
+  private robotCam = false;
+  /** Campaign phase last frame (to spot a fresh countdown after a full restart). */
+  private lastPhase: string | null = null;
+  private interiorShown = true;
   /** Dev-only orbit override for inspecting models: [yaw, pitch, distance]. */
   private debugOrbit: [number, number, number] | null = null;
   /** Online play (created on first use). */
@@ -159,6 +165,12 @@ export class Game {
     this.renderer.scene.add(rig.root);
     this.carRoot = rig.root;
     this.carBody = rig.body;
+    // Headlight beams for night levels.
+    this.headlight = new THREE.SpotLight(0xf4f8ff, 90, 90, 0.48, 0.55, 1.4);
+    this.headlight.position.set(0, 0.7, -2.1);
+    this.headlight.target.position.set(0, 0, -22);
+    this.headlight.visible = false;
+    rig.root.add(this.headlight, this.headlight.target);
     this.car = new CarController(this.physics, rig);
     this.car.airAssist = this.settings.airAssist ?? profile.isTouch;
     this.thrusters = rig.nozzles
@@ -271,6 +283,7 @@ export class Game {
       heading = test.spawnHeading;
     }
     this.car.setSpawn(spawn, heading);
+    this.headlight.visible = def?.timeOfDay === 'night';
     this.car.isSafeSpot = level ? (p) => level!.hazardAt(p) === null : null;
     this.landing.reset();
 
@@ -342,7 +355,8 @@ export class Game {
       online,
       opponents,
       minimap,
-      showroom: kind === 'menu' ? new Showroom(this.carRoot, this.carBody, this.paintMaterial()) : null,
+      showroom:
+        kind === 'menu' || kind === 'campaign' ? new Showroom(this.carRoot, this.carBody, this.paintMaterial(), kind === 'menu' ? 'menu' : 'race') : null,
       elapsed: 0,
     };
   }
@@ -540,18 +554,10 @@ export class Game {
   }
 
   private showMainMenu(): void {
-    const room = this.session?.showroom;
-    if (room?.boarding) return;
-    room?.reset();
     this.overlay.show(
       mainMenu(
         {
-          campaign: () => {
-            // The robot gets in the car first, then pick a level.
-            if (!room) return this.showLevelSelect('campaign');
-            this.overlay.hide();
-            room.board(() => this.showLevelSelect('campaign'));
-          },
+          campaign: () => this.showLevelSelect('campaign'),
           freeRoam: () => this.showLevelSelect('free'),
           dragRun: () => this.load({ kind: 'drag' }),
           online: () => this.showOnlineHome(null),
@@ -868,14 +874,31 @@ export class Game {
     if (this.debugOrbit) {
       const [yaw, pitch, dist] = this.debugOrbit;
       this.orbit(yaw, pitch, dist);
-    } else if (s?.showroom) {
+    } else if (s?.showroom && (s.kind === 'menu' || s.campaign?.phase === 'countdown')) {
+      // Title screen, or the robot climbing in during the race countdown
+      // (a run that restarts from the grid gets back in again).
+      if (s.kind === 'campaign' && this.lastPhase !== 'countdown' && s.showroom.seated) s.showroom.boardForCountdown();
       s.showroom.update(frameDt, cam);
+      this.robotCam = true;
     } else if (s?.kind === 'menu') {
       this.menuAngle += frameDt * 0.12;
       this.orbit(this.menuAngle - 2.3, 0.12, 7.5);
     } else {
+      if (this.robotCam) {
+        // Cut from the boarding shot to the chase camera at GO.
+        this.robotCam = false;
+        this.chase.snap();
+      }
+      s?.showroom?.update(frameDt, null);
       if (this.car.thrust.rear > 0) this.chase.addShake(realDt * 0.6);
       this.chase.update(frameDt, p, this.car.renderQuaternion, this.car.forwardSpeed, this.car.onAdhesive, realDt);
+    }
+    this.lastPhase = s?.campaign?.phase ?? null;
+    // The cabin is hidden only while looking out from the driver's seat.
+    const interior = !(this.chase.mode === 'cockpit' && !this.robotCam && s?.kind !== 'menu' && !this.debugOrbit);
+    if (interior !== this.interiorShown) {
+      this.interiorShown = interior;
+      setCarInterior(this.carRoot, interior);
     }
     if (s?.level) {
       s.level.update(frameDt, s.campaign?.elapsed ?? s.elapsed, cam, {
@@ -887,7 +910,8 @@ export class Game {
 
     if (this.thrusters) {
       this.thrusters.setViewport(this.renderer.drawingHeight, cam.fov);
-      this.thrusters.update(frameDt, s?.showroom ? s.showroom.thrust : this.car.thrust, this.carRoot, this.car.probeGroundY());
+      const boarding = s?.showroom && (s.kind === 'menu' || s.campaign?.phase === 'countdown');
+      this.thrusters.update(frameDt, boarding ? s!.showroom!.thrust : this.car.thrust, this.carRoot, this.car.probeGroundY());
     }
     this.touchControls.setAirborne(this.car.airborne);
     this.updateEffects(s, frameDt, realDt);

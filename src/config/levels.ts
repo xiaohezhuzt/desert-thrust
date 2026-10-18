@@ -563,7 +563,7 @@ export const LEVELS: readonly LevelDef[] = [
     name: '都市街区',
     subtitle: '街道车流、穿楼而过、路口飞越',
     biome: 'city',
-    timeOfDay: 'noon',
+    timeOfDay: 'night',
     weather: 'clear',
     aiCount: 5,
     aiSkill: 0.85,
