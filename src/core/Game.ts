@@ -45,7 +45,7 @@ import { PerfMonitor } from './PerfMonitor';
 import { Physics, type Rapier } from './Physics';
 import { createRng } from './Random';
 import { Renderer } from './Renderer';
-import { SaveSystem, type Progress, type QualityLock, type Settings } from './SaveSystem';
+import { SaveSystem, type Progress, type Settings } from './SaveSystem';
 
 interface Opponent {
   readonly driver: AIDriver;
@@ -81,7 +81,6 @@ interface Session {
 
 /** Beyond this distance from the player, low-tier devices update AI forces at half rate. */
 const AI_FAR_DISTANCE = 150;
-const LOCK_CYCLE: readonly QualityLock[] = ['auto', 'low', 'medium', 'high'];
 /** Input used while controls are locked (countdown, menus, results). */
 const NEUTRAL = createEmptyActions();
 const MENU_LEVEL = LEVELS[0]!.id;
@@ -141,8 +140,8 @@ export class Game {
     for (const [id, rec] of Object.entries(this.progress.levels)) {
       if (rec.stars > 0) this.progress.unlocked = Math.max(this.progress.unlocked, Math.min(Number(id) + 1, lastId));
     }
-    if (forcedTier) this.settings.qualityLock = forcedTier;
-    this.tier = this.settings.qualityLock === 'auto' ? profile.recommendedTier : this.settings.qualityLock;
+    // Always the best picture: no quality menu, no automatic downgrade (`?tier=` still forces one for testing).
+    this.tier = forcedTier ?? 'high';
 
     this.renderer = new Renderer(viewport, QUALITY[this.tier]);
     this.renderer.setFog(0xe7a46a);
@@ -168,10 +167,6 @@ export class Game {
     };
 
     this.hud = new HUD(hudRoot);
-    this.hud.onQualityChipClick = () => {
-      const i = LOCK_CYCLE.indexOf(this.settings.qualityLock);
-      this.applySettings({ ...this.settings, qualityLock: LOCK_CYCLE[(i + 1) % LOCK_CYCLE.length]! });
-    };
     this.hud.onAutoThrottleClick = () => this.applySettings({ ...this.settings, autoThrottle: !this.touchInput.autoThrottle });
     this.hud.onPause = () => this.setPaused(true);
     this.hud.onCamera = () => this.toggleCamera();
@@ -201,7 +196,7 @@ export class Game {
     this.audio.setVolumes(this.settings.sfxVolume, this.settings.musicVolume);
 
     this.perf = new PerfMonitor(() => this.degrade());
-    this.perf.enabled = this.settings.qualityLock === 'auto';
+    this.perf.enabled = false;
 
     this.loop = new GameLoop(
       1 / QUALITY[this.tier].physicsHz,
@@ -629,9 +624,8 @@ export class Game {
   }
 
   private syncPause(): void {
-    // Online races share one clock: the pause menu doesn't stop the world, your car just coasts.
-    const menuFreezes = this.userPaused && !this.session?.online;
-    this.loop.setPaused(menuFreezes || this.loading || this.hidden || this.portrait);
+    // Pause freezes your own game, online too (the race clock there keeps to the server, so it's fair).
+    this.loop.setPaused(this.userPaused || this.loading || this.hidden || this.portrait);
     this.touchControls.setVisible(!this.userPaused && !this.loading && this.input.activeDevice === 'touch');
   }
 
@@ -713,7 +707,6 @@ export class Game {
 
   /** Apply and persist settings from the settings screen / HUD shortcuts. */
   private applySettings(next: Settings): void {
-    const lockChanged = next.qualityLock !== this.settings.qualityLock;
     if (next.controlScheme === 'tilt' && this.settings.controlScheme !== 'tilt') {
       // iOS asks for motion permission; this runs inside the tap that chose "tilt".
       void TiltInput.requestPermission().then((ok) => {
@@ -730,11 +723,6 @@ export class Game {
     this.hud.setAutoThrottle(this.touchInput.autoThrottle);
     this.applyControlSettings();
     this.audio.setVolumes(next.sfxVolume, next.musicVolume);
-    if (lockChanged) {
-      this.perf.enabled = next.qualityLock === 'auto';
-      this.renderer.setRenderScale(1);
-      this.setTier(next.qualityLock === 'auto' ? this.profile.recommendedTier : next.qualityLock);
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -766,7 +754,7 @@ export class Game {
   private step(dt: number): void {
     const s = this.session;
     if (!s) return;
-    const locked = this.controlsLocked(s) || this.userPaused;
+    const locked = this.controlsLocked(s);
     s.online?.step();
     this.car.step(dt, locked ? NEUTRAL : this.input.actions);
     this.stepCount++;
@@ -937,7 +925,6 @@ export class Game {
     const hud = this.hud;
     hud.setSpeed(this.car.forwardSpeed, this.settings.units);
     hud.setEnergy(this.car.energy / this.car.energyMax, this.car.thrust.rear > 0 || this.car.thrust.down > 0.5);
-    hud.setPerf(this.perf.fps, this.tier, this.settings.qualityLock !== 'auto', this.renderer.currentRenderScale);
     if (!s) return;
     const c = s.campaign;
     if (c) {

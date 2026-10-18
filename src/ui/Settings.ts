@@ -1,4 +1,4 @@
-import type { QualityLock, Settings, SpeedUnit } from '../core/SaveSystem';
+import type { Settings, SpeedUnit } from '../core/SaveSystem';
 import { button, h } from './dom';
 
 export interface SettingsActions {
@@ -63,18 +63,6 @@ export function settingsScreen(
   h('h2', '', '设置', p);
   const set = (patch: Partial<Settings>): void => a.change({ ...current, ...patch });
 
-  segmented<QualityLock>(
-    p,
-    '画质',
-    [
-      ['auto', '自动'],
-      ['low', '低'],
-      ['medium', '中'],
-      ['high', '高'],
-    ],
-    current.qualityLock,
-    (v) => set({ qualityLock: v }),
-  );
   segmented<SpeedUnit>(
     p,
     '速度单位',

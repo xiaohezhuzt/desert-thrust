@@ -9,7 +9,7 @@ export interface UpcomingLevel {
 
 /**
  * Level cards with lock state, stars and best time.
- * `mode` 'free' only allows scenes already unlocked, without race rules.
+ * `mode` 'free' opens every scene from the start, without race rules.
  */
 export function levelSelect(
   levels: readonly LevelDef[],
@@ -25,7 +25,7 @@ export function levelSelect(
   h('h2', '', mode === 'campaign' ? '选择关卡' : '自由驾驶 · 选择场景', head);
   const grid = h('div', 'level-grid', undefined, s);
   for (const def of levels) {
-    const locked = def.id > progress.unlocked;
+    const locked = mode === 'campaign' && def.id > progress.unlocked;
     const rec = progress.levels[String(def.id)];
     const card = h('button', `level-card${locked ? ' locked' : ''}`, undefined, grid);
     card.type = 'button';

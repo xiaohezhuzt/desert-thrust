@@ -61,6 +61,8 @@ export class Campaign {
   phase: RunPhase = 'countdown';
   /** race clock, includes retry penalties */
   time = 0;
+  /** Retry penalties added this run (kept when the online clock catches the timer up). */
+  private penalties = 0;
   /** seconds since the level loaded (drives time of day) */
   elapsed = 0;
   retriesLeft: number;
@@ -127,6 +129,7 @@ export class Campaign {
   restart(): void {
     this.phase = 'countdown';
     this.time = 0;
+    this.penalties = 0;
     this.elapsed = 0;
     this.countdown = COUNTDOWN;
     this.lastCount = -1;
@@ -210,6 +213,11 @@ export class Campaign {
   /** Online: drive the 3-2-1 from the shared clock so every device gets the green light together. */
   syncCountdown(secondsLeft: number): void {
     if (this.phase === 'countdown') this.countdown = Math.min(this.countdown, secondsLeft);
+  }
+
+  /** Online: the race clock follows the shared server clock, so pausing never shortens your time. */
+  syncRaceClock(secondsSinceGo: number): void {
+    if (this.phase === 'racing') this.time = Math.max(this.time, secondsSinceGo + this.penalties);
   }
 
   beginCountdown(): void {
@@ -388,6 +396,7 @@ export class Campaign {
     }
     this.retriesLeft--;
     this.time += this.def.retryPenalty;
+    this.penalties += this.def.retryPenalty;
     this.events.banner(title, `${detail} · 检查点重试 +${this.def.retryPenalty}s · 剩余 ${this.retriesLeft} 次`, 'bad', 2.2);
     this.car.respawn(toVec(gate.def.checkpoint), gate.def.checkpointHeading);
     this.playerTracker.lose();

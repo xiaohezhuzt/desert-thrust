@@ -92,6 +92,7 @@ export class OnlineRace {
     // The 3-2-1 begins 3 s before the shared start time.
     if (this.campaign.phase === 'waiting' && now >= this.startAt - 3000) this.campaign.beginCountdown();
     this.campaign.syncCountdown((this.startAt - now) / 1000);
+    this.campaign.syncRaceClock((now - this.startAt) / 1000);
     for (const r of this.remotes.values()) r.step(now);
   }
 

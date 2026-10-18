@@ -56,6 +56,7 @@ html, body {
 }
 
 .hud-chip {
+  display: none;
   position: absolute;
   top: calc(var(--safe-t) + var(--u));
   left: calc(var(--safe-l) + var(--u));
