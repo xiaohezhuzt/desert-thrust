@@ -42,6 +42,8 @@ export class HUD {
   private lastTimerText = '';
   private lastInfo = '';
   onPause: (() => void) | null = null;
+  onCamera: (() => void) | null = null;
+  private readonly cameraBtn: HTMLDivElement;
   private gradeTimer = 0;
   private lastEnergyPct = -1;
   private lastSpeedText = '';
@@ -70,12 +72,23 @@ export class HUD {
     this.progressFill = el('div', 'progress-fill', bar);
     this.infoEl = el('div', 'race-info', this.race);
     this.bannerEl = el('div', 'banner', root);
-    const pause = el('div', 'hud-pause', root);
+    // Fire on finger-down: iPad Safari doesn't reliably deliver pointerup to plain divs.
+    const tap = (e: HTMLElement, fn: () => void): void => {
+      e.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        fn();
+      });
+    };
+    const pause = el('div', 'hud-btn hud-pause', root);
     pause.textContent = '⏸';
-    pause.addEventListener('pointerup', () => this.onPause?.());
+    tap(pause, () => this.onPause?.());
+    this.cameraBtn = el('div', 'hud-btn hud-camera', root);
+    tap(this.cameraBtn, () => this.onCamera?.());
+    this.setCameraMode('chase');
 
     this.autoThrottleToggle = el('div', 'hud-toggle', root);
-    this.autoThrottleToggle.addEventListener('pointerup', () => this.onAutoThrottleClick?.());
+    tap(this.autoThrottleToggle, () => this.onAutoThrottleClick?.());
 
     this.hint = el('div', 'hud-hint', root);
   }
@@ -151,6 +164,10 @@ export class HUD {
       item.append(label);
     }
     this.autoThrottleToggle.classList.toggle('hidden', device !== 'touch');
+  }
+
+  setCameraMode(mode: 'chase' | 'cockpit'): void {
+    this.cameraBtn.innerHTML = `<span class="ico">🎥</span>${mode === 'chase' ? '第三人称' : '第一人称'}`;
   }
 
   setAutoThrottle(on: boolean): void {

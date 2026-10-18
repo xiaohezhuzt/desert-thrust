@@ -1,4 +1,4 @@
-# DESERT THRUST
+# 特斯拉 Roadster 3D 赛车闯关 (TESLA ROADSTER · 3D Stunt Racing Challenge)
 
 3D 特技赛车闯关游戏 —— Three.js + TypeScript + Vite + Rapier 物理。
 同一套代码在电脑浏览器、手机（iOS Safari / Android Chrome）和 iPad 上运行，可"添加到主屏幕"作为全屏 PWA 离线游玩。

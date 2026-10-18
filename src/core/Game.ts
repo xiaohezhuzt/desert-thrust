@@ -174,6 +174,7 @@ export class Game {
     };
     this.hud.onAutoThrottleClick = () => this.applySettings({ ...this.settings, autoThrottle: !this.touchInput.autoThrottle });
     this.hud.onPause = () => this.setPaused(true);
+    this.hud.onCamera = () => this.toggleCamera();
 
     this.touchControls = new TouchControls(hudRoot);
     // Auto-throttle is a phone convenience; on tablets you hold the throttle yourself.
@@ -611,6 +612,13 @@ export class Game {
     );
   }
 
+  private toggleCamera(): void {
+    const s = this.session;
+    if (!s || s.kind === 'menu' || this.loading || this.userPaused) return;
+    this.chase.toggleMode();
+    this.hud.setCameraMode(this.chase.mode);
+  }
+
   private setPaused(paused: boolean): void {
     const s = this.session;
     if (!s || s.kind === 'menu' || this.loading) return;
@@ -830,7 +838,7 @@ export class Game {
       if (actions.pausePressed) this.setPaused(!this.userPaused);
       if (!this.userPaused && !this.controlsLocked(s)) {
         if (actions.resetPressed) this.car.reset();
-        if (actions.cameraPressed) this.chase.toggleMode();
+        if (actions.cameraPressed) this.toggleCamera();
       }
     }
 

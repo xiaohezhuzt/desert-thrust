@@ -16,8 +16,11 @@ export interface MainMenuActions {
 export function mainMenu(a: MainMenuActions, totalStars: number, maxStars: number): HTMLElement {
   const s = h('div', 'screen main-menu');
   const title = h('div', 'title', undefined, s);
-  h('div', 'logo', 'DESERT THRUST', title);
-  h('div', 'tagline', '3D 特技赛车闯关', title);
+  h('div', 'logo-kicker', '3D STUNT RACING CHALLENGE', title);
+  const logo = h('div', 'logo', undefined, title);
+  h('span', 'logo-a', 'TESLA', logo);
+  h('span', 'logo-b', 'ROADSTER', logo);
+  h('div', 'tagline', '特斯拉 Roadster 3D 赛车闯关', title);
   const list = h('div', 'menu-list', undefined, s);
   button('闯关', a.campaign, 'primary', list);
   button('多人联机', a.online, 'primary', list);
@@ -27,6 +30,7 @@ export function mainMenu(a: MainMenuActions, totalStars: number, maxStars: numbe
   if (a.fullscreen) button('全屏', a.fullscreen, 'ghost', list);
   h('div', 'menu-foot', `★ ${totalStars} / ${maxStars}`, s);
   if (a.hint) h('div', 'menu-hint', a.hint, s);
+  h('div', 'menu-credit', 'Made by Holiday and OPUS 5.5', s);
   return s;
 }
 

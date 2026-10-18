@@ -262,6 +262,6 @@ wss.on('connection', (ws) => {
 wss.on('close', () => clearInterval(heartbeat));
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`DESERT THRUST 服务器已启动: http://localhost:${PORT}/`);
+  console.log(`Roadster 3D 服务器已启动: http://localhost:${PORT}/`);
   console.log(`同一 Wi-Fi 下的手机/iPad/同学电脑打开: http://${lanAddress() ?? '192.168.x.x'}:${PORT}/`);
 });

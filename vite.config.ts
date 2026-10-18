@@ -17,8 +17,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
       manifest: {
-        name: 'DESERT THRUST',
-        short_name: 'THRUST',
+        name: 'Tesla Roadster 3D 赛车闯关',
+        short_name: 'Roadster 3D',
         description: '3D 特技赛车闯关：飞越车队、空中横滚、六大场景。',
         lang: 'zh-CN',
         start_url: './',

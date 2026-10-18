@@ -98,7 +98,7 @@ export function lobbyScreen(room: RoomInfo, myId: string, link: string, levels: 
     inviteBox,
   );
   if (navigator.share) {
-    button('分享', () => void navigator.share({ title: 'DESERT THRUST 赛车邀请', text: `来和我比赛！房间码 ${room.code}`, url: link }).catch(() => undefined), 'ghost', inviteBox);
+    button('分享', () => void navigator.share({ title: '特斯拉 Roadster 3D 赛车邀请', text: `来和我比赛！房间码 ${room.code}`, url: link }).catch(() => undefined), 'ghost', inviteBox);
   }
 
   const list = h('ul', 'players', undefined, p);
