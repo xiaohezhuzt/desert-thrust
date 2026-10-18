@@ -17,8 +17,9 @@ const FLAME_LENGTH: Record<Channel, number> = { rear: 1.9, down: 1.1, left: 0.55
 const FLAME_RADIUS: Record<Channel, number> = { rear: 0.058, down: 0.08, left: 0.045, right: 0.045 };
 
 /**
- * Blue-white cold-gas thruster visuals: additive flame cones at each hidden
- * nozzle, glowing jet particles, cold vapour mist, and ground spray under the hover jets.
+ * Cold-gas thrusters that look like real compressed air: a faint white condensation
+ * cone at each hidden nozzle, a dense white vapour plume that expands, slows and
+ * drifts up as it fades, lingering mist, and dust / spray kicked up under the hover jets.
  */
 export class Thrusters {
   readonly jets: ParticleSystem;
@@ -42,7 +43,7 @@ export class Thrusters {
     nozzles: CarNozzles,
     maxParticles: number,
   ) {
-    this.jets = new ParticleSystem(Math.floor(maxParticles * 0.55), true);
+    this.jets = new ParticleSystem(Math.floor(maxParticles * 0.55), false);
     this.mist = new ParticleSystem(Math.floor(maxParticles * 0.45), false);
     scene.add(this.jets.points, this.mist.points);
 
@@ -51,18 +52,16 @@ export class Thrusters {
     this.flameGeo.rotateX(Math.PI);
     this.flameGeo.translate(0, 0.5, 0);
     this.outerMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0.35, 0.65, 1.0).multiplyScalar(2.2),
+      color: new THREE.Color(0.93, 0.95, 0.97),
       transparent: true,
-      opacity: 0.4,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.16,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
     this.coreMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0.85, 0.95, 1.0).multiplyScalar(4),
+      color: new THREE.Color(1, 1, 1),
       transparent: true,
-      opacity: 0.8,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.32,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -133,21 +132,36 @@ export class Thrusters {
       }
     }
 
-    this.jets.update(dt, 2.5, 0);
-    this.mist.update(dt, 1.6, 0.6);
+    // Strong drag: the gas spreads and stalls behind the car; warm vapour rises a little.
+    this.jets.update(dt, 4.2, 0.5);
+    this.mist.update(dt, 1.8, 0.9);
   }
 
   private emitJet(ch: Channel, level: number): void {
     const speed = ch === 'rear' ? 28 : ch === 'down' ? 18 : 10;
-    const j = 1.6;
+    const j = 2.4;
     const vx = this.carVel.x + this.wd.x * speed * level + (Math.random() - 0.5) * j;
     const vy = this.carVel.y + this.wd.y * speed * level + (Math.random() - 0.5) * j;
     const vz = this.carVel.z + this.wd.z * speed * level + (Math.random() - 0.5) * j;
-    const sz = ch === 'rear' ? 0.28 : 0.22;
-    this.jets.emit(this.wp.x, this.wp.y, this.wp.z, vx, vy, vz, 0.18 + Math.random() * 0.1, sz, sz * 2.4, 0.5, 0.8, 1.6, 0.9 * level);
+    const sz = ch === 'rear' ? 0.2 : 0.16;
+    const shade = 0.9 + Math.random() * 0.08;
+    // Dense white plume: starts as a tight jet, billows to a wide puff.
+    for (let k = 0; k < 2; k++) {
+      this.jets.emit(
+        this.wp.x + this.wd.x * 0.1 * k,
+        this.wp.y + this.wd.y * 0.1 * k,
+        this.wp.z + this.wd.z * 0.1 * k,
+        vx, vy, vz,
+        0.35 + Math.random() * 0.3,
+        sz,
+        sz * (7 + Math.random() * 4),
+        shade, shade + 0.02, shade + 0.04,
+        0.42 * level,
+      );
+    }
 
-    // Cold vapour trailing behind the hot core.
-    if (Math.random() < 0.5 * level) {
+    // Lingering vapour left hanging in the air behind the car.
+    if (Math.random() < 0.7 * level) {
       const mv = speed * 0.45;
       this.mist.emit(
         this.wp.x + this.wd.x * 0.6,
@@ -156,13 +170,13 @@ export class Thrusters {
         this.carVel.x * 0.6 + this.wd.x * mv + (Math.random() - 0.5) * 2,
         this.carVel.y * 0.6 + this.wd.y * mv + (Math.random() - 0.5) * 2,
         this.carVel.z * 0.6 + this.wd.z * mv + (Math.random() - 0.5) * 2,
-        0.7 + Math.random() * 0.5,
-        0.35,
-        1.6,
-        0.88,
+        1.1 + Math.random() * 0.9,
+        0.5,
+        3.4,
+        0.9,
+        0.91,
         0.93,
-        1.0,
-        0.32 * level,
+        0.22 * level,
       );
     }
   }

@@ -15,6 +15,8 @@ export interface DressingStyle {
   readonly festive: readonly number[];
   /** emissive bulbs on the bunting (night levels) */
   readonly lights?: boolean;
+  /** city streets: no kerbs, verges, flags, tyres, balloons or grandstand; just the start / finish gantries */
+  readonly urban?: boolean;
 }
 
 export interface TrackDressing {
@@ -127,7 +129,7 @@ export function buildTrackDressing(
     s.p.clone().addScaledVector(s.right, off).setY(s.p.y + lift);
 
   const allSamples: { road: RoadDef; samples: Sample[] }[] = [];
-  def.roads.forEach((road, ri) => {
+  (style.urban ? [] : def.roads).forEach((road, ri) => {
     const line = lines[ri];
     if (!line) return;
     const samples = samplesOf(line);
@@ -386,7 +388,7 @@ export function buildTrackDressing(
     group.add(g);
     // Balloon bunches on top of both pillars.
     for (const side of [-1, 1]) {
-      for (let k = 0; k < (low ? 4 : 10); k++) {
+      for (let k = 0; k < (style.urban ? 0 : low ? 4 : 10); k++) {
         if (balloons.base.length >= balloons.mesh.count) break;
         const local = new THREE.Vector3(side * span + (rng() - 0.5) * 2.4, 12.5 + rng() * 2.5, (rng() - 0.5) * 2.4);
         local.applyAxisAngle(new THREE.Vector3(0, 1, 0), heading).add(pos);
@@ -410,7 +412,7 @@ export function buildTrackDressing(
   group.add(balloons.mesh);
 
   // ---- Grandstand with a crowd beside the start ----------------------------------
-  if (firstRoad && !firstRoad.elevated) {
+  if (firstRoad && !firstRoad.elevated && !style.urban) {
     const right = new THREE.Vector3(-sf.z, 0, sf.x);
     const base = start.clone().addScaledVector(right, firstRoad.width / 2 + 13).addScaledVector(sf, -10);
     const stand = new THREE.Group();
@@ -421,21 +423,30 @@ export function buildTrackDressing(
       step.receiveShadow = true;
       stand.add(step);
     }
-    const roof = new THREE.Mesh(keep(new THREE.BoxGeometry(15, 0.4, 48)), keep(new THREE.MeshStandardMaterial({ color: style.kerbA, roughness: 0.6 })));
+    const roof = new THREE.Mesh(keep(new THREE.BoxGeometry(15, 0.4, 48)), keep(new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.45, metalness: 0.6 })));
     roof.position.set(5, 8.5, 0);
     roof.castShadow = true;
     stand.add(roof);
-    const personGeo = keep(new THREE.CapsuleGeometry(0.32, 0.7, 3, 6));
-    const people = new THREE.InstancedMesh(personGeo, keep(new THREE.MeshStandardMaterial({ roughness: 0.7 })), low ? 60 : 160);
-    for (let i = 0; i < people.count; i++) {
+    // Spectators: seated bodies in everyday clothes with heads (no toy colours).
+    const crowdMat = keep(new THREE.MeshStandardMaterial({ roughness: 0.8 }));
+    const n = low ? 60 : 160;
+    const bodies = new THREE.InstancedMesh(keep(new THREE.CapsuleGeometry(0.26, 0.5, 3, 8)), crowdMat, n);
+    const heads = new THREE.InstancedMesh(keep(new THREE.SphereGeometry(0.15, 10, 8)), crowdMat, n);
+    const clothes = [0x2f4f7f, 0xe8e4da, 0x3a3a3c, 0x6c8a5a, 0xc8322c, 0x1f2a44, 0x8a8f96, 0xd8c7a2, 0x5a3f2e, 0x2b8a8a];
+    const skin = [0xf1c9a5, 0xd9a77e, 0xa8774f, 0x7a5236, 0xe8b893];
+    for (let i = 0; i < n; i++) {
       const row = i % 4;
-      dummy.position.set(row * 3.2 - 0.6 + (rng() - 0.5) * 1.6, 1 + row * 1.1 + 0.7, (rng() - 0.5) * 44);
+      dummy.position.set(row * 3.2 - 0.6 + (rng() - 0.5) * 1.6, 1 + row * 1.1 + 0.62, (rng() - 0.5) * 44);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
-      people.setMatrixAt(i, dummy.matrix);
-      people.setColorAt(i, pick());
+      bodies.setMatrixAt(i, dummy.matrix);
+      bodies.setColorAt(i, color.set(clothes[Math.floor(rng() * clothes.length)]!));
+      dummy.position.y += 0.62;
+      dummy.updateMatrix();
+      heads.setMatrixAt(i, dummy.matrix);
+      heads.setColorAt(i, color.set(skin[Math.floor(rng() * skin.length)]!));
     }
-    stand.add(people);
+    stand.add(bodies, heads);
     stand.position.set(base.x, start.y - 0.3, base.z);
     stand.rotation.y = def.start.heading;
     group.add(stand);

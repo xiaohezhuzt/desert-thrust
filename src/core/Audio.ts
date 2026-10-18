@@ -18,7 +18,7 @@ const MUSIC: Record<Biome | 'menu', MusicStyle> = {
   mountain: { root: 116.5, scale: [0, 2, 3, 5, 7, 8, 10], bpm: 124, bass: [0, 3, 5, 3], drums: 'break', pad: 'sawtooth' },
   snow: { root: 103.8, scale: [0, 2, 3, 7, 8], bpm: 100, bass: [0, 0, 7, 3], drums: 'half', pad: 'sine' },
   canyon: { root: 87.3, scale: [0, 3, 5, 6, 7, 10], bpm: 128, bass: [0, 3, 0, 5, 6, 5], drums: 'break', pad: 'square' },
-  nightCity: { root: 110, scale: [0, 3, 5, 7, 10], bpm: 136, bass: [0, 0, 7, 0, 5, 0, 3, 0], drums: 'four', pad: 'sawtooth' },
+  city: { root: 110, scale: [0, 3, 5, 7, 10], bpm: 136, bass: [0, 0, 7, 0, 5, 0, 3, 0], drums: 'four', pad: 'sawtooth' },
 };
 
 /** Continuous sound state for one car (player or an opponent). */

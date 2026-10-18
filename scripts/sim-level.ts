@@ -11,7 +11,7 @@ const ctxStub: object = new Proxy({}, { get: () => () => ctxStub, set: () => tru
   createElement: () => ({ width: 0, height: 0, getContext: () => ctxStub }),
 };
 
-const { Physics, loadRapier } = await import('../src/core/Physics');
+const { Physics, loadRapier, GROUP_AI } = await import('../src/core/Physics');
 const { createEmptyActions } = await import('../src/input/InputManager');
 const { CarController } = await import('../src/vehicle/CarController');
 const { LandingJudge } = await import('../src/vehicle/LandingJudge');
@@ -39,6 +39,7 @@ for (const [front, z, track] of [[true, -T.wheelBase / 2, T.frontTrack], [false,
 const rig: Rig = { root: new THREE.Group(), body: new THREE.Group(), wheels };
 
 const scene = new THREE.Scene();
+const simCamera = new THREE.PerspectiveCamera();
 const { QUALITY } = await import('../src/config/quality');
 const fakeRenderer = {
   maxAnisotropy: 1,
@@ -69,6 +70,7 @@ const drivers = [0, 1, 2, 3, 4, 5].sort(() => rng() - 0.5).slice(0, def.aiCount)
   const cd = CARS[k]!;
   const rig = createOpponentCar(cd, cd.palette[0]!, false, 90);
   const c = new CarController(physics, rig, cd.perf, opponentGeometry(cd.shape));
+  c.ignoreTraffic(GROUP_AI);
   c.isSafeSpot = (p) => level.hazardAt(p) === null;
   const drv = new AIDriver(c, line, cd, def.aiSkill, def.aiRubberBand, rng);
   c.onReset = () => log.push(`  AI ${cd.name} respawned at (${c.simPosition.x.toFixed(0)},${c.simPosition.z.toFixed(0)}) t=${campaign.time.toFixed(1)}`);
@@ -180,6 +182,9 @@ for (let i = 0; i < 120 * 150 && campaign.phase !== 'finished'; i++) {
       log.push(`  AI ${d.def.name} finished at ${campaign.time.toFixed(1)}s`);
     }
   }
+  // Animated scenery (city traffic, trains): the camera rides along with the player.
+  simCamera.position.copy(car.renderPosition);
+  level.update(DT, i * DT, simCamera);
   const landing = judge.update(DT, car);
   if (landing) log.push(`  landing ${landing.grade} ${landing.angle.toFixed(0)}° ${(landing.retention * 100).toFixed(0)}% air ${landing.airTime.toFixed(2)}s @ (${p.x.toFixed(0)},${p.z.toFixed(0)})`);
   campaign.step(DT, landing);

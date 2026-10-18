@@ -143,6 +143,15 @@ export class CarController {
   private readonly quarterMass: number;
   private readonly springScale: number;
 
+  private chassis: RAPIER.Collider | null = null;
+  private queryGroups: number | undefined = undefined;
+
+  /** AI racers ignore city traffic (it is only there to get in the player's way). */
+  ignoreTraffic(groups: number): void {
+    this.chassis?.setCollisionGroups(groups);
+    this.queryGroups = groups;
+  }
+
   constructor(
     private readonly physics: Physics,
     private readonly rig: CarRig,
@@ -180,7 +189,7 @@ export class CarController {
       .setFriction(T.chassisFriction)
       .setRestitution(0.05)
       .setMassProperties(this.mass, { x: 0, y: T.centerOfMassY - T.chassisOffsetY, z: 0 }, inertia, { x: 0, y: 0, z: 0, w: 1 });
-    physics.world.createCollider(colDesc, this.body);
+    this.chassis = physics.world.createCollider(colDesc, this.body);
 
     this.ray = new R.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
@@ -589,7 +598,7 @@ export class CarController {
   probeGroundY(range = 12): number | null {
     this.ray.origin = this.currPos;
     this.ray.dir = WORLD_DOWN;
-    const hit = this.physics.world.castRay(this.ray, range, true, undefined, undefined, undefined, this.body);
+    const hit = this.physics.world.castRay(this.ray, range, true, undefined, this.queryGroups, undefined, this.body);
     return hit ? this.currPos.y - hit.timeOfImpact : null;
   }
 
@@ -645,7 +654,7 @@ export class CarController {
       this.hp.copy(w.local).applyQuaternion(this.quat).add(this.pos);
       this.ray.origin = this.hp;
       this.ray.dir = this.down;
-      const hit = world.castRayAndGetNormal(this.ray, maxToi, true, undefined, undefined, undefined, this.body);
+      const hit = world.castRayAndGetNormal(this.ray, maxToi, true, undefined, this.queryGroups, undefined, this.body);
       const prevLength = w.length;
       if (hit && hit.timeOfImpact - r <= T.suspensionMaxLength) {
         const len = Math.max(hit.timeOfImpact - r, 0);

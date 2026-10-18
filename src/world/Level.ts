@@ -9,7 +9,7 @@ import { buildCoast } from './biomes/Coast';
 import type { Biome, BiomeContext } from './biomes/common';
 import { buildDesert } from './biomes/Desert';
 import { buildMountain } from './biomes/Mountain';
-import { buildNightCity } from './biomes/NightCity';
+import { buildCity } from './biomes/City';
 import { buildSnow } from './biomes/Snow';
 import { buildStunt, type BuiltStunt, type StuntContext } from './StuntPieces';
 import type { TerrainPad } from './Terrain';
@@ -34,7 +34,7 @@ const DRESSING: Record<LevelDef['biome'], DressingStyle> = {
   mountain: { verge: 0x63a33f, kerbA: 0xe8322c, kerbB: 0xffffff, festive: FESTIVE },
   snow: { verge: 0xf1f5fa, kerbA: 0xd8262b, kerbB: 0xffffff, festive: [0xff3b3b, 0x3bff7a, 0xffd23b, 0x3bb4ff], lights: true },
   canyon: { verge: 0xe0ab6f, kerbA: 0xe8322c, kerbB: 0xffffff, festive: FESTIVE },
-  nightCity: { verge: 0x23232c, kerbA: 0xff2e88, kerbB: 0xf2f2ff, festive: [0xff2e88, 0x2ee6ff, 0xffe02e, 0x9a5cff], lights: true },
+  city: { verge: 0xb9b5ad, kerbA: 0x3b3e43, kerbB: 0xf2f2ee, festive: FESTIVE, urban: true },
 };
 
 const BIOMES: Record<LevelDef['biome'], (ctx: BiomeContext) => Biome> = {
@@ -43,7 +43,7 @@ const BIOMES: Record<LevelDef['biome'], (ctx: BiomeContext) => Biome> = {
   mountain: buildMountain,
   snow: buildSnow,
   canyon: buildCanyon,
-  nightCity: buildNightCity,
+  city: buildCity,
 };
 
 /** A level built from its data: biome, roads, stunt pieces, racing line, hazards. */

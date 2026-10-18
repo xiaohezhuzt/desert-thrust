@@ -7,7 +7,7 @@ import type { LandingGrade } from '../vehicle/LandingJudge';
 
 export type Vec3 = readonly [number, number, number];
 
-export type Biome = 'desert' | 'coast' | 'mountain' | 'snow' | 'canyon' | 'nightCity';
+export type Biome = 'desert' | 'coast' | 'mountain' | 'snow' | 'canyon' | 'city';
 export type TimeOfDay = 'dawn' | 'noon' | 'dusk' | 'duskToNight' | 'night';
 export type Weather = 'clear' | 'haze' | 'snow' | 'rain';
 
@@ -560,78 +560,71 @@ export const LEVELS: readonly LevelDef[] = [
   // ---------------------------------------------------------------------------
   {
     id: 6,
-    name: '霓虹夜城高架',
-    subtitle: '楼顶连跳，垂直回环，飞越 15 车 PERFECT',
-    biome: 'nightCity',
-    timeOfDay: 'night',
-    weather: 'rain',
-    aiCount: 7,
-    aiSkill: 0.95,
+    name: '都市街区',
+    subtitle: '街道车流、穿楼而过、路口飞越',
+    biome: 'city',
+    timeOfDay: 'noon',
+    weather: 'clear',
+    aiCount: 5,
+    aiSkill: 0.85,
     aiRubberBand: 0.55,
-    requiredPlace: 1,
+    requiredPlace: 2,
     requiredLandingGrade: 'GOOD',
     retriesAllowed: 3,
-    timeLimit: 160,
-    parTime: 50,
+    timeLimit: 170,
+    parTime: 52,
     retryPenalty: 5,
-    killY: 6,
-    start: { position: [0, 20, 600], heading: 0 },
-    finish: { center: [12, 14, -530], halfSize: [12, 6, 2], heading: 0 },
+    start: { position: [0, 0, 800], heading: 0 },
+    finish: { center: [200, 2, -64], halfSize: [10, 6, 2], heading: TO_PLUS_X },
     roads: [
-      { points: [[0, 20, 640], [0, 20, 600], [0, 20, 452]], width: 16, style: 'wet', elevated: true, barriers: true },
-      { points: [[0, 16, 42], [0, 14, 10], [0, 12, -30], [0, 12, -72]], width: 16, style: 'wet', elevated: true, barriers: true },
-      { points: [[12, 12, -88], [12, 12, -200], [12, 12, -560]], width: 20, style: 'wet', elevated: true, barriers: true },
+      {
+        // One street course through the downtown grid: four streets, three tight 90° junctions.
+        points: [
+          [0, 0, 840], [0, 0, 800], [0, 0, 420], [0, 0, 330], [0, 0, 308], [-3.5, 0, 299.5], [-12, 0, 296],
+          [-120, 0, 296], [-248, 0, 296], [-256.5, 0, 292.5], [-260, 0, 284], [-260, 0, 120], [-260, 0, -52],
+          [-256.5, 0, -60.5], [-248, 0, -64], [-60, 0, -64], [260, 0, -64],
+        ],
+        width: 16,
+      },
     ],
     stunts: [
-      { type: 'kicker', position: [0, 20, 452], heading: 0, params: { width: 12, length: 14, angleDeg: 12, approachSpeed: 34 } },
-      { type: 'building', position: [0, 24, 360], heading: 0, params: { width: 30, length: 100 } },
-      { type: 'kicker', position: [0, 24, 322], heading: 0, params: { width: 12, length: 12, angleDeg: 8, approachSpeed: 34 } },
-      { type: 'building', position: [0, 20, 235], heading: 0, params: { width: 30, length: 110 } },
-      { type: 'kicker', position: [0, 20, 192], heading: 0, params: { width: 12, length: 12, angleDeg: 8, approachSpeed: 34 } },
-      { type: 'building', position: [0, 16, 100], heading: 0, params: { width: 30, length: 120 } },
-      { type: 'fullLoop', position: [0, 12, -70], heading: 0, params: { radius: 12, width: 9, lateralOffset: 12, entryLength: 8 } },
-      { type: 'kicker', position: [12, 12, -200], heading: 0, params: { width: 12, length: 14, angleDeg: 13, approachSpeed: 40 } },
+      { type: 'kicker', position: [0, 0, 540], heading: 0, params: { width: 11, length: 14, angleDeg: 8, approachSpeed: 38 } },
       {
         type: 'carRow',
-        position: [12, 12, -245],
+        position: [0, 0, 509],
         heading: 0,
-        params: {
-          vehicles: [
-            'sedan', 'suv', 'robotaxi', 'pickup', 'sedan', 'boxTruck', 'suv', 'robotaxi',
-            'sedan', 'pickup', 'suv', 'robotaxi', 'sedan', 'boxTruck', 'suv',
-          ],
-          gap: 0.6,
-        },
+        params: { vehicles: ['sedan', 'robotaxi', 'suv', 'pickup', 'sedan'], gap: 0.8 },
+      },
+      { type: 'kicker', position: [-60, 0, -64], heading: TO_PLUS_X, params: { width: 11, length: 14, angleDeg: 8, approachSpeed: 38 } },
+      {
+        type: 'carRow',
+        position: [-29, 0, -64],
+        heading: TO_PLUS_X,
+        params: { vehicles: ['sedan', 'suv', 'robotaxi', 'pickup', 'sedan'], gap: 0.8 },
       },
     ],
     gates: [
-      { name: '楼顶飞跃 1', center: [0, 30, 385], halfSize: [20, 25, 85], heading: 0, checkpoint: [0, 20, 520], checkpointHeading: 0 },
-      { name: '楼顶飞跃 2', center: [0, 26, 240], halfSize: [20, 25, 75], heading: 0, checkpoint: [0, 24.3, 355], checkpointHeading: 0 },
-      { name: '楼顶飞跃 3', center: [0, 22, 100], halfSize: [20, 25, 80], heading: 0, checkpoint: [0, 20.3, 240], checkpointHeading: 0 },
       {
-        name: '垂直回环',
-        center: [6, 20, -80],
-        halfSize: [20, 25, 30],
+        name: '街头飞越',
+        center: [0, 10, 440],
+        halfSize: [14, 40, 110],
         heading: 0,
-        checkpoint: [0, 12, -10],
+        checkpoint: [0, 0, 700],
         checkpointHeading: 0,
-        requires: 'inverted',
-        pass: 'ride',
       },
       {
-        name: '飞越 15 车',
-        center: [12, 16, -340],
-        halfSize: [16, 30, 170],
-        heading: 0,
-        checkpoint: [12, 12, -120],
-        checkpointHeading: 0,
-        minGrade: 'PERFECT',
+        name: '路口飞越',
+        center: [30, 10, -64],
+        halfSize: [14, 40, 100],
+        heading: TO_PLUS_X,
+        checkpoint: [-230, 0, -64],
+        checkpointHeading: TO_PLUS_X,
       },
     ],
     trackSpline: [
-      [0, 20, 600], [0, 20, 452], [0, 23, 439], [0, 24, 400], [0, 24, 322], [0, 25.7, 310], [0, 20, 280], [0, 20, 192],
-      [0, 21.7, 180], [0, 16, 150], [0, 16, 42], [0, 12, -30], [0, 12, -70], [0, 12, -78], [1.8, 24, -90], [6, 36, -78],
-      [10.2, 24, -66], [12, 12, -78], [12, 12, -90], [12, 12, -200], [12, 15.1, -213], [12, 12, -300], [12, 12, -540],
+      [0, 0, 800], [0, 0, 540], [0, 1.95, 526], [0, 0, 400], [0, 0, 330], [0, 0, 308], [-3.5, 0, 299.5], [-12, 0, 296],
+      [-248, 0, 296], [-256.5, 0, 292.5], [-260, 0, 284], [-260, 0, -52], [-256.5, 0, -60.5], [-248, 0, -64],
+      [-60, 0, -64], [-46, 1.95, -64], [200, 0, -64],
     ],
   },
 ];

@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createRng } from '../../core/Random';
 import { SkyDome, type SkyColors } from '../Sky';
 import { buildTerrain, makeNoise } from '../Terrain';
-import { sandTexture } from '../Textures';
+import { sandNormalTexture, sandTexture } from '../Textures';
 import { Clouds } from '../Clouds';
 import { bush, cactus, grassTuft, mesa, propMaterial } from '../props/Nature';
 import { density, patchy, rockGeometry, scatter, type Biome, type BiomeContext } from './common';
@@ -32,9 +32,12 @@ export function buildDesert(ctx: BiomeContext): Biome {
   // ---- Terrain -------------------------------------------------------------
   const sand = sandTexture();
   sand.anisotropy = renderer.maxAnisotropy;
-  const sandA = new THREE.Color(0xe8b877);
-  const sandB = new THREE.Color(0xd49a5c);
-  const crest = new THREE.Color(0xf3cf96);
+  const sandNormal = sandNormalTexture();
+  sandNormal.anisotropy = renderer.maxAnisotropy;
+  // Natural, slightly desaturated sand tones (the texture carries the grain and ripples).
+  const sandA = new THREE.Color(0xf4d2a4);
+  const sandB = new THREE.Color(0xe3b884);
+  const crest = new THREE.Color(0xfbe6c4);
   const terrain = buildTerrain(physics, {
     halfSize: TERRAIN_HALF,
     cells: TERRAIN_CELLS,
@@ -50,7 +53,8 @@ export function buildDesert(ctx: BiomeContext): Biome {
       out.multiplyScalar(1 - Math.min(slope * 0.9, 0.3));
     },
     texture: sand,
-    textureMetres: 24,
+    normalMap: sandNormal,
+    textureMetres: 14,
     roughness: 0.97,
     surface: (h) => (h > 1.5 ? 'softSand' : 'hardSand'),
   });
@@ -60,7 +64,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
   // Far dune ring beyond the playable terrain so the horizon isn't a cliff edge.
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(TERRAIN_HALF * 0.95, TERRAIN_HALF * 3, 64, 1).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: 0xb88a58, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0xd9b282, roughness: 1 }),
   );
   ring.position.y = -0.5;
   group.add(ring);
@@ -336,6 +340,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
     },
     dispose() {
       sand.dispose();
+      sandNormal.dispose();
     },
   };
 }

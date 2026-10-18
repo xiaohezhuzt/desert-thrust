@@ -4,7 +4,7 @@ import { createRng } from '../../core/Random';
 import { Ocean } from '../Ocean';
 import { SkyDome } from '../Sky';
 import { buildTerrain, fbm, makeNoise } from '../Terrain';
-import { sandTexture } from '../Textures';
+import { sandNormalTexture, sandTexture } from '../Textures';
 import { Clouds } from '../Clouds';
 import { bush, flowerClump, grassTuft, propMaterial, roundTree, umbrella } from '../props/Nature';
 import { applyLighting, density, palmGeometry, patchy, rockGeometry, scatter, type Biome, type BiomeContext } from './common';
@@ -66,7 +66,8 @@ export function buildCoast(ctx: BiomeContext): Biome {
       if (slope > 0.45 && h > 2) out.copy(rock);
     },
     texture: tex,
-    textureMetres: 20,
+    normalMap: sandNormalTexture(),
+    textureMetres: 14,
     surface: (h, slope) => (h < 3.5 ? 'hardSand' : slope > 0.45 ? 'dirt' : 'dirt'),
   });
   group.add(terrain.mesh);

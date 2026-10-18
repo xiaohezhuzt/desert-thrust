@@ -17,6 +17,11 @@ export async function loadRapier(): Promise<Rapier> {
 /** Maps a hit collider (and hit position) to a ground surface type. */
 export type SurfaceResolver = (collider: RAPIER.Collider, x: number, z: number) => Surface;
 
+/** Collision groups ((membership << 16) | filter). City traffic only touches the player's car. */
+export const GROUP_TRAFFIC = (0x0002 << 16) | 0xffff;
+/** AI racers: everything except traffic. */
+export const GROUP_AI = (0x0004 << 16) | (0xffff & ~0x0002);
+
 export class Physics {
   readonly world: RAPIER.World;
   private readonly surfaces = new Map<number, Surface | SurfaceResolver>();

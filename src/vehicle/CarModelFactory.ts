@@ -154,6 +154,7 @@ export function bandPatch(
   bottom: readonly (readonly [number, number])[],
   top: readonly (readonly [number, number])[],
   lift: number,
+  sides: readonly number[] = [1, -1],
 ): THREE.BufferGeometry {
   const steps = 14;
   const pos: number[] = [];
@@ -168,7 +169,7 @@ export function bandPatch(
       THREE.MathUtils.lerp(pts[i]![1], pts[i + 1]![1], r),
     ];
   };
-  for (const side of [1, -1]) {
+  for (const side of sides) {
     const base = pos.length / 3;
     for (let s = 0; s <= steps; s++) {
       for (const e of [bottom, top]) {
@@ -222,7 +223,7 @@ function sec(
   return { z, pts: [[0, bottom], [sillX, bottom], p2, p3, p4, p5, p6, [0, topY]] };
 }
 
-const BODY: readonly PolySection[] = [
+export const BODY: readonly PolySection[] = [
   sec(-2.28, 0.2, 0.78, [0.86, 0.3], [0.9, 0.46], [0.84, 0.62], [0.58, 0.63], [0.5, 0.55], 0.55),
   sec(-2.08, 0.15, 0.88, [0.96, 0.3], [0.99, 0.52], [0.95, 0.84], [0.62, 0.86], [0.54, 0.62], 0.61),
   sec(-HALF_BASE, 0.14, 0.9, [0.98, 0.32], [1.0, 0.56], [0.96, 0.93], [0.66, 0.93], [0.57, 0.68], 0.68),
@@ -269,12 +270,16 @@ export function setCarPaint(root: THREE.Object3D, color: THREE.ColorRepresentati
 
 function createPaintMaterial(opts: CarModelOptions): THREE.MeshStandardMaterial {
   if (opts.physicalPaint) {
+    // Deep automotive paint: satin base coat under a mirror-like clear coat.
     return new THREE.MeshPhysicalMaterial({
       color: opts.paintColor,
-      roughness: 0.42,
-      metalness: 0.0,
-      clearcoat: 0.6,
-      clearcoatRoughness: 0.12,
+      roughness: 0.32,
+      metalness: 0.05,
+      clearcoat: 1,
+      clearcoatRoughness: 0.035,
+      sheen: 0.25,
+      sheenColor: new THREE.Color(0xffffff),
+      envMapIntensity: 1.25,
       flatShading: true,
     });
   }
@@ -377,6 +382,12 @@ function buildWheel(front: boolean): { spin: THREE.Group; static: THREE.Group } 
   const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.025, 32).rotateZ(Math.PI / 2), discMat);
   disc.position.x = width * 0.05;
   stat.add(disc);
+  // Red brake caliper hugging the disc at the top rear.
+  const caliperMat = new THREE.MeshStandardMaterial({ color: 0xc4231c, roughness: 0.35, metalness: 0.3 });
+  const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.2), caliperMat);
+  caliper.position.set(width * 0.05, 0.16, 0.08);
+  caliper.rotation.x = -0.5;
+  stat.add(caliper);
   return { spin, static: stat };
 }
 
@@ -399,14 +410,31 @@ export function createVoltR(opts: CarModelOptions): CarRig {
   const paint = createPaint(opts);
   const dark = new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.55, metalness: 0.2, flatShading: true });
   const wellMat = new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.9 });
+  // Tinted glass you can see the cabin through, with strong sky reflections.
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x06080b,
-    roughness: 0.05,
-    metalness: 0.3,
+    color: 0x070a0e,
+    roughness: 0.03,
+    metalness: 0.15,
     clearcoat: 1,
-    clearcoatRoughness: 0.02,
+    clearcoatRoughness: 0.01,
+    envMapIntensity: 1.6,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
     flatShading: true,
   });
+  const sideGlass = new THREE.MeshPhysicalMaterial({
+    color: 0x080b10,
+    roughness: 0.03,
+    metalness: 0.2,
+    clearcoat: 1,
+    clearcoatRoughness: 0.01,
+    envMapIntensity: 1.6,
+    flatShading: true,
+  });
+  const leather = new THREE.MeshStandardMaterial({ color: 0x1d1d20, roughness: 0.7 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.35, metalness: 0.7 });
+  const seam = new THREE.MeshStandardMaterial({ color: 0x0c0d0f, roughness: 0.8 });
   const lamp = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xeaf6ff, emissiveIntensity: 3 });
   const tailLamp = new THREE.MeshStandardMaterial({ color: 0x400008, emissive: 0xff1a2a, emissiveIntensity: 4 });
   const copper = new THREE.MeshStandardMaterial({ color: 0xb87a4b, roughness: 0.3, metalness: 1 });
@@ -419,7 +447,41 @@ export function createVoltR(opts: CarModelOptions): CarRig {
   const canopyGeo = polyLoft(CANOPY, (k) => (k === 2 ? 1 : 0), 1, 1);
   const canopy = new THREE.Mesh(canopyGeo, [paint, glass]);
   canopy.castShadow = true;
+  canopy.renderOrder = 2;
   body.add(canopy);
+
+  // Cabin seen through the glass: two bucket seats, dashboard, yoke wheel, centre console.
+  for (const x of [-0.33, 0.33]) {
+    body.add(box(leather, 0.46, 0.1, 0.5, x, 0.88, 0.5));
+    const back = box(leather, 0.46, 0.34, 0.1, x, 1.0, 0.8);
+    back.rotation.x = -0.32;
+    body.add(back);
+    body.add(box(leather, 0.3, 0.08, 0.1, x, 1.13, 0.88));
+  }
+  body.add(box(leather, 1.3, 0.1, 0.4, 0, 0.9, -0.3));
+  body.add(box(trim, 0.16, 0.08, 0.9, 0, 0.88, 0.2));
+  const yoke = box(trim, 0.32, 0.1, 0.03, -0.33, 0.99, -0.02);
+  yoke.rotation.x = 0.35;
+  body.add(yoke, box(trim, 0.04, 0.04, 0.2, -0.33, 0.95, -0.12));
+  body.add(box(new THREE.MeshStandardMaterial({ color: 0x0a0c10, emissive: 0x2a4a6a, emissiveIntensity: 0.6, roughness: 0.2 }), 0.42, 0.24, 0.02, 0, 1.0, -0.18));
+
+  // Camera wings in place of mirrors on the A-pillars.
+  for (const side of [-1, 1]) {
+    const stalk = box(paint, 0.12, 0.03, 0.05, side * 0.76, 0.86, -0.62);
+    const pod = box(paint, 0.05, 0.07, 0.17, side * 0.83, 0.88, -0.6);
+    const lens = box(seam, 0.03, 0.03, 0.01, side * 0.83, 0.88, -0.69);
+    body.add(stalk, pod, lens);
+  }
+
+  // Panel seams: door front and rear edges, and the bonnet line.
+  for (const [z0, u0, u1] of [
+    [-0.78, 0.0, 1.0],
+    [1.06, 0.0, 1.0],
+  ] as const) {
+    for (const band of [2, 3]) {
+      body.add(new THREE.Mesh(bandPatch(BODY, band, [[z0, u0], [z0 + 0.014, u0]], [[z0, u1], [z0 + 0.014, u1]], 0.004), seam));
+    }
+  }
 
   // Wedge-shaped side windows on the canopy's side band.
   const windowGeo = bandPatch(
@@ -435,7 +497,7 @@ export function createVoltR(opts: CarModelOptions): CarRig {
     ],
     0.006,
   );
-  body.add(new THREE.Mesh(windowGeo, glass));
+  body.add(new THREE.Mesh(windowGeo, sideGlass));
 
   // Dark vent on the rear haunch behind the side window.
   const ventGeo = bandPatch(

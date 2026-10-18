@@ -24,6 +24,7 @@ import { button, formatTime } from '../ui/dom';
 import { HUD } from '../ui/HUD';
 import { levelSelect } from '../ui/LevelSelect';
 import { loadingScreen, mainMenu, pauseMenu } from '../ui/Menu';
+import { Showroom } from '../menu/Showroom';
 import { Minimap } from '../ui/Minimap';
 import { Overlay } from '../ui/Overlay';
 import { isStandalone, RotateHint, toggleFullscreen } from '../ui/RotateHint';
@@ -42,7 +43,7 @@ import { lowerTier, type DeviceProfile } from './DeviceProfile';
 import { disposeObject } from './dispose';
 import { GameLoop } from './GameLoop';
 import { PerfMonitor } from './PerfMonitor';
-import { Physics, type Rapier } from './Physics';
+import { GROUP_AI, Physics, type Rapier } from './Physics';
 import { createRng } from './Random';
 import { Renderer } from './Renderer';
 import { SaveSystem, type Progress, type Settings } from './SaveSystem';
@@ -76,6 +77,8 @@ interface Session {
   readonly online: OnlineRace | null;
   readonly opponents: Opponent[];
   readonly minimap: Minimap | null;
+  /** title screen: the robot and the parked car */
+  readonly showroom: Showroom | null;
   elapsed: number;
 }
 
@@ -95,6 +98,7 @@ export class Game {
   private readonly overlay: Overlay;
   private readonly car: CarController;
   private readonly carRoot: THREE.Object3D;
+  private readonly carBody: THREE.Object3D;
   private readonly chase: ChaseCamera;
   private readonly thrusters: Thrusters | null;
   private readonly landing = new LandingJudge();
@@ -154,6 +158,7 @@ export class Game {
     const rig = createVoltR({ paintColor: 0xf4f4f1, physicalPaint: QUALITY[this.tier].physicalPaint });
     this.renderer.scene.add(rig.root);
     this.carRoot = rig.root;
+    this.carBody = rig.body;
     this.car = new CarController(this.physics, rig);
     this.car.airAssist = this.settings.airAssist ?? profile.isTouch;
     this.thrusters = rig.nozzles
@@ -337,6 +342,7 @@ export class Game {
       online,
       opponents,
       minimap,
+      showroom: kind === 'menu' ? new Showroom(this.carRoot, this.carBody, this.paintMaterial()) : null,
       elapsed: 0,
     };
   }
@@ -351,6 +357,7 @@ export class Game {
       disposeObject(o.root);
     }
     s.minimap?.dispose();
+    s.showroom?.dispose();
     s.online?.dispose();
     s.level?.dispose();
     s.test?.dispose();
@@ -378,6 +385,7 @@ export class Game {
       const rig = createOpponentCar(carDef, color, q.physicalPaint, q.tier === 'low' ? 45 : 90);
       this.renderer.scene.add(rig.root);
       const car = new CarController(this.physics, rig, carDef.perf, opponentGeometry(carDef.shape));
+      car.ignoreTraffic(GROUP_AI);
       const driver = new AIDriver(car, line, carDef, def.aiSkill, def.aiRubberBand, rng);
       const thrusters = rig.nozzles
         ? new Thrusters(this.renderer.scene, rig.root, rig.nozzles, Math.floor(q.maxParticles * 0.12))
@@ -518,15 +526,32 @@ export class Game {
     this.load({ kind: 'menu' });
   }
 
+  private paintMaterial(): THREE.Material {
+    let paint: THREE.Material | null = null;
+    this.carRoot.traverse((o) => {
+      const m = (o as Partial<THREE.Mesh>).material;
+      for (const x of Array.isArray(m) ? m : m ? [m] : []) if (x.name === 'paint') paint = x;
+    });
+    return paint ?? new THREE.MeshStandardMaterial({ color: 0xf4f4f1 });
+  }
+
   private totalStars(): number {
     return Object.values(this.progress.levels).reduce((s, r) => s + r.stars, 0);
   }
 
   private showMainMenu(): void {
+    const room = this.session?.showroom;
+    if (room?.boarding) return;
+    room?.reset();
     this.overlay.show(
       mainMenu(
         {
-          campaign: () => this.showLevelSelect('campaign'),
+          campaign: () => {
+            // The robot gets in the car first, then pick a level.
+            if (!room) return this.showLevelSelect('campaign');
+            this.overlay.hide();
+            room.board(() => this.showLevelSelect('campaign'));
+          },
           freeRoam: () => this.showLevelSelect('free'),
           dragRun: () => this.load({ kind: 'drag' }),
           online: () => this.showOnlineHome(null),
@@ -843,8 +868,9 @@ export class Game {
     if (this.debugOrbit) {
       const [yaw, pitch, dist] = this.debugOrbit;
       this.orbit(yaw, pitch, dist);
+    } else if (s?.showroom) {
+      s.showroom.update(frameDt, cam);
     } else if (s?.kind === 'menu') {
-      // Showroom: slow orbit around the car on the launch straight.
       this.menuAngle += frameDt * 0.12;
       this.orbit(this.menuAngle - 2.3, 0.12, 7.5);
     } else {
@@ -861,7 +887,7 @@ export class Game {
 
     if (this.thrusters) {
       this.thrusters.setViewport(this.renderer.drawingHeight, cam.fov);
-      this.thrusters.update(frameDt, this.car.thrust, this.carRoot, this.car.probeGroundY());
+      this.thrusters.update(frameDt, s?.showroom ? s.showroom.thrust : this.car.thrust, this.carRoot, this.car.probeGroundY());
     }
     this.touchControls.setAirborne(this.car.airborne);
     this.updateEffects(s, frameDt, realDt);
@@ -1001,6 +1027,7 @@ export class Game {
         this.chase.snap();
       },
       load: (startup: Startup) => this.load(startup),
+      scene: this.renderer.scene,
       info: () => ({ ...this.renderer.renderer.info.render, tier: this.tier, geometries: this.renderer.renderer.info.memory.geometries, textures: this.renderer.renderer.info.memory.textures }),
       finish: (place = 1) =>
         this.onRunFinished({

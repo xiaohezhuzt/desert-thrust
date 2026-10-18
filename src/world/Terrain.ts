@@ -39,6 +39,8 @@ export interface TerrainOptions {
   /** vertex colour from height and slope (0 flat .. 1 vertical) */
   color(h: number, slope: number, out: THREE.Color, x: number, z: number): void;
   readonly texture?: THREE.Texture;
+  /** detail normal map, tiled like `texture` */
+  readonly normalMap?: THREE.Texture;
   readonly textureMetres?: number;
   readonly roughness?: number;
   surface(h: number, slope: number): Surface;
@@ -141,12 +143,18 @@ export function buildTerrain(physics: Physics, o: TerrainOptions): BuiltTerrain 
     colors.set([c.r, c.g, c.b], k * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  if (o.texture) {
-    o.texture.repeat.set(size / (o.textureMetres ?? 24), size / (o.textureMetres ?? 24));
-  }
+  const reps = size / (o.textureMetres ?? 24);
+  o.texture?.repeat.set(reps, reps);
+  o.normalMap?.repeat.set(reps, reps);
   const mesh = new THREE.Mesh(
     geo,
-    new THREE.MeshStandardMaterial({ map: o.texture ?? null, vertexColors: true, roughness: o.roughness ?? 0.95 }),
+    new THREE.MeshStandardMaterial({
+      map: o.texture ?? null,
+      normalMap: o.normalMap ?? null,
+      normalScale: new THREE.Vector2(1.1, 1.1),
+      vertexColors: true,
+      roughness: o.roughness ?? 0.95,
+    }),
   );
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
