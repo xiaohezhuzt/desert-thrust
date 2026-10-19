@@ -119,6 +119,7 @@ export class Campaign {
 
   /** Seconds since the 3-2-1 began (0..COUNTDOWN), for animations that must finish by GO. */
   get countdownElapsed(): number {
+    if (this.phase === 'waiting') return 0;
     return this.phase === 'countdown' ? Math.max(0, COUNTDOWN - this.countdown) : COUNTDOWN;
   }
 

@@ -17,6 +17,8 @@ export class ParticleSystem {
   private readonly size1: Float32Array;
   private readonly rgb: Float32Array;
   private readonly alpha0: Float32Array;
+  /** per-particle ground height (particles slide along it instead of sinking) */
+  private readonly floor: Float32Array;
 
   private readonly posAttr: THREE.BufferAttribute;
   private readonly colorAttr: THREE.BufferAttribute;
@@ -34,6 +36,7 @@ export class ParticleSystem {
     this.size1 = new Float32Array(n);
     this.rgb = new Float32Array(n * 3);
     this.alpha0 = new Float32Array(n);
+    this.floor = new Float32Array(n);
 
     const geo = new THREE.BufferGeometry();
     this.posAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
@@ -92,6 +95,8 @@ export class ParticleSystem {
     g: number,
     b: number,
     alpha: number,
+    /** ground height under the emitter; defaults to just below the emit point */
+    floor = py - 0.5,
   ): void {
     if (this.count >= this.max) return;
     const i = this.count++;
@@ -110,6 +115,7 @@ export class ParticleSystem {
     this.rgb[i3 + 1] = g;
     this.rgb[i3 + 2] = b;
     this.alpha0[i] = alpha;
+    this.floor[i] = floor;
   }
 
   update(dt: number, drag: number, gravity: number): void {
@@ -129,7 +135,7 @@ export class ParticleSystem {
       this.vel[i3 + 1] = this.vel[i3 + 1]! * damp + gravity * dt;
       this.vel[i3 + 2] = this.vel[i3 + 2]! * damp;
       this.pos[i3] = this.pos[i3]! + this.vel[i3]! * dt;
-      this.pos[i3 + 1] = Math.max(this.pos[i3 + 1]! + this.vel[i3 + 1]! * dt, 0.05);
+      this.pos[i3 + 1] = Math.max(this.pos[i3 + 1]! + this.vel[i3 + 1]! * dt, this.floor[i]!);
       this.pos[i3 + 2] = this.pos[i3 + 2]! + this.vel[i3 + 2]! * dt;
 
       const t = this.age[i]! / this.life[i]!;
@@ -177,5 +183,6 @@ export class ParticleSystem {
     this.size0[i] = this.size0[last]!;
     this.size1[i] = this.size1[last]!;
     this.alpha0[i] = this.alpha0[last]!;
+    this.floor[i] = this.floor[last]!;
   }
 }

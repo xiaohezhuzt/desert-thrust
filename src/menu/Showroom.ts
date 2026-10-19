@@ -162,7 +162,7 @@ export class Showroom {
       r.root.visible = false;
     } else {
       // The race version follows the countdown clock, so it always ends right at GO.
-      if (this.mode === 'race' && this.raceClock !== null) this.boardT = Math.max(this.boardT, this.raceClock * RACE_SPEED);
+      if (this.mode === 'race') this.boardT = Math.max(this.boardT, (this.raceClock ?? 0) * RACE_SPEED);
       else this.boardT += dt;
       const b = this.boardT;
       // 0.0–1.6 walk to the door, 1.6–2.4 open it, 2.4–3.6 climb in, 3.6–4.2 shut, 4.2–5.2 wake-up.

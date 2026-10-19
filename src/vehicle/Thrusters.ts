@@ -36,6 +36,7 @@ export class Thrusters {
   private hasLast = false;
   private emitCarry = 0;
   private time = 0;
+  private floorY = -1e9;
 
   constructor(
     scene: THREE.Scene,
@@ -98,6 +99,8 @@ export class Thrusters {
   update(dt: number, thrust: ThrustState, carRoot: THREE.Object3D, groundY: number | null): void {
     if (dt <= 0) return;
     this.time += dt;
+    // Ground under the car for the vapour to spread along (unknown when far up in the air).
+    this.floorY = groundY ?? -1e9;
     carRoot.updateMatrixWorld();
 
     // Car velocity from the rendered pose (cheap, no physics query).
@@ -157,6 +160,7 @@ export class Thrusters {
         sz * (7 + Math.random() * 4),
         shade, shade + 0.02, shade + 0.04,
         0.42 * level,
+        this.floorY + 0.05,
       );
     }
 
@@ -177,6 +181,7 @@ export class Thrusters {
         0.91,
         0.93,
         0.22 * level,
+        this.floorY + 0.05,
       );
     }
   }
@@ -203,6 +208,7 @@ export class Thrusters {
       0.88,
       0.8,
       0.45 * strength,
+      groundY + 0.05,
     );
   }
 
