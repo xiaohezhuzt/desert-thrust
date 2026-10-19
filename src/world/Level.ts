@@ -34,7 +34,7 @@ const DRESSING: Record<LevelDef['biome'], DressingStyle> = {
   mountain: { verge: 0x63a33f, kerbA: 0xe8322c, kerbB: 0xffffff, festive: FESTIVE },
   snow: { verge: 0xf1f5fa, kerbA: 0xd8262b, kerbB: 0xffffff, festive: [0xff3b3b, 0x3bff7a, 0xffd23b, 0x3bb4ff], lights: true },
   canyon: { verge: 0xe0ab6f, kerbA: 0xe8322c, kerbB: 0xffffff, festive: FESTIVE },
-  city: { verge: 0xb9b5ad, kerbA: 0x3b3e43, kerbB: 0xf2f2ee, festive: FESTIVE, urban: true },
+  city: { verge: 0xb9b5ad, kerbA: 0xc9ced6, kerbB: 0xf2f2ee, festive: FESTIVE, urban: true, lights: true },
 };
 
 const BIOMES: Record<LevelDef['biome'], (ctx: BiomeContext) => Biome> = {

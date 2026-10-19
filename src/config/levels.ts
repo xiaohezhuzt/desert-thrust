@@ -561,7 +561,7 @@ export const LEVELS: readonly LevelDef[] = [
   {
     id: 6,
     name: '都市街区',
-    subtitle: '街道车流、穿楼而过、路口飞越',
+    subtitle: '夜间街道：车流、施工路段、穿楼、三次路口飞越',
     biome: 'city',
     timeOfDay: 'night',
     weather: 'clear',
@@ -596,6 +596,13 @@ export const LEVELS: readonly LevelDef[] = [
         params: { vehicles: ['sedan', 'robotaxi', 'suv', 'pickup', 'sedan'], gap: 0.8 },
       },
       { type: 'kicker', position: [-60, 0, -64], heading: TO_PLUS_X, params: { width: 11, length: 14, angleDeg: 8, approachSpeed: 38 } },
+      { type: 'kicker', position: [-260, 0, 90], heading: 0, params: { width: 11, length: 14, angleDeg: 8, approachSpeed: 36 } },
+      {
+        type: 'carRow',
+        position: [-260, 0, 59],
+        heading: 0,
+        params: { vehicles: ['sedan', 'robotaxi', 'suv', 'sedan'], gap: 0.8 },
+      },
       {
         type: 'carRow',
         position: [-29, 0, -64],
@@ -613,6 +620,14 @@ export const LEVELS: readonly LevelDef[] = [
         checkpointHeading: 0,
       },
       {
+        name: '高架桥下飞越',
+        center: [-260, 10, 25],
+        halfSize: [14, 40, 80],
+        heading: 0,
+        checkpoint: [-260, 0, 212],
+        checkpointHeading: 0,
+      },
+      {
         name: '路口飞越',
         center: [30, 10, -64],
         halfSize: [14, 40, 100],
@@ -623,7 +638,10 @@ export const LEVELS: readonly LevelDef[] = [
     ],
     trackSpline: [
       [0, 0, 800], [0, 0, 540], [0, 1.95, 526], [0, 0, 400], [0, 0, 330], [0, 0, 308], [-3.5, 0, 299.5], [-12, 0, 296],
-      [-248, 0, 296], [-256.5, 0, 292.5], [-260, 0, 284], [-260, 0, -52], [-256.5, 0, -60.5], [-248, 0, -64],
+      [-248, 0, 296], [-256.5, 0, 292.5], [-260, 0, 284],
+      // Weave through the road-works chicane (barriers alternate sides), then the jump under the metro.
+      [-256, 0, 272], [-255, 0, 262], [-258.5, 0, 254], [-265, 0, 246], [-261.5, 0, 238], [-255, 0, 230], [-258, 0, 218],
+      [-260, 0, 205], [-260, 0, 90], [-260, 1.95, 76], [-260, 0, -52], [-256.5, 0, -60.5], [-248, 0, -64],
       [-60, 0, -64], [-46, 1.95, -64], [200, 0, -64],
     ],
   },

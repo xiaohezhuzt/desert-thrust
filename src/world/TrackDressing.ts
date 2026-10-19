@@ -368,6 +368,15 @@ export function buildTrackDressing(
     phase: [],
   };
   const checker = keep(checkerTexture());
+  const checkerLine = keep(
+    canvasTexture(256, (c, sz) => {
+      const n = 16;
+      for (let y = 0; y < 2; y++) for (let x = 0; x < n; x++) {
+        c.fillStyle = (x + y) % 2 ? '#111' : '#f2f2f2';
+        c.fillRect((x * sz) / n, (y * sz) / 2, sz / n, sz / 2);
+      }
+    }),
+  );
   const beamMat = keep(new THREE.MeshStandardMaterial({ map: checker, roughness: 0.6 }));
   const pillarMat = keep(new THREE.MeshStandardMaterial({ color: style.kerbA, roughness: 0.5 }));
   const arch = (pos: THREE.Vector3, heading: number, width: number): void => {
@@ -383,6 +392,22 @@ export function buildTrackDressing(
     beam.position.y = 10.6;
     beam.castShadow = true;
     g.add(beam);
+    if (style.lights) {
+      // Lit gantry for night levels: light bars under the beam and up both pillars.
+      const glow = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 3.2, 3.4) }));
+      const bar = new THREE.Mesh(keep(new THREE.BoxGeometry(span * 2, 0.18, 0.25)), glow);
+      bar.position.set(0, 9.2, 0.5);
+      g.add(bar);
+      for (const side of [-1, 1]) {
+        const strip = new THREE.Mesh(keep(new THREE.BoxGeometry(0.2, 8.6, 0.2)), glow);
+        strip.position.set(side * span, 4.6, 0.75);
+        g.add(strip);
+      }
+    }
+    // Chequered line painted across the road under the gantry.
+    const line = new THREE.Mesh(keep(new THREE.PlaneGeometry(span * 2 - 2, 2.4).rotateX(-Math.PI / 2)), keep(new THREE.MeshStandardMaterial({ map: checkerLine, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -4 })));
+    line.position.y = 0.25;
+    g.add(line);
     g.position.copy(pos);
     g.rotation.y = heading;
     group.add(g);

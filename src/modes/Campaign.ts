@@ -41,7 +41,7 @@ export interface CampaignEvents {
 }
 
 /** Point inside an oriented box (heading about +Y). */
-function insideBox(p: THREE.Vector3, center: readonly number[], half: readonly number[], heading: number): boolean {
+export function insideBox(p: THREE.Vector3, center: readonly number[], half: readonly number[], heading: number): boolean {
   const dx = p.x - center[0]!;
   const dy = p.y - center[1]!;
   const dz = p.z - center[2]!;

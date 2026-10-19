@@ -33,6 +33,9 @@ const WALK = 6;
 const CURB = 0.18;
 /** The road that passes under a building on the 296 street. */
 const ARCADE = { x0: -225, x1: -165, z: 296, clear: 7.5 };
+/** Road works on the -260 street: barrier lines across half the road, alternating sides (z, side). */
+const CHICANE: readonly (readonly [number, -1 | 1])[] = [[262, -1], [246, 1], [230, -1]];
+const CHICANE_X = -260;
 /** Elevated metro over the -260 street. */
 const METRO = { x: -260, z0: 470, z1: -360, deck: 10.5 };
 
@@ -821,6 +824,95 @@ export function buildCity(ctx: BiomeContext): Biome {
   // Parked cars.
   group.add(buildParkedVehicles(parked, 13));
 
+  // ---- Road works chicane ---------------------------------------------------------
+  const blink: THREE.Mesh[] = [];
+  {
+    const stripe = keep(
+      canvasTexture(128, (c, sz) => {
+        c.fillStyle = '#e8e6e0';
+        c.fillRect(0, 0, sz, sz);
+        c.fillStyle = '#c62828';
+        for (let k = -sz; k < sz * 2; k += 32) {
+          c.beginPath();
+          c.moveTo(k, 0);
+          c.lineTo(k + 16, 0);
+          c.lineTo(k + 16 + sz * 0.5, sz);
+          c.lineTo(k + sz * 0.5, sz);
+          c.fill();
+        }
+      }),
+    );
+    const barrierMat = keep(new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.7 }));
+    const coneMat = keep(new THREE.MeshStandardMaterial({ color: 0xff6a13, roughness: 0.5, emissive: 0x401400 }));
+    const amber = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 2.2, 0.3) }));
+    // Jersey barrier: wide foot, narrow top.
+    const jersey = keep(
+      mergeGeometries([
+        new THREE.BoxGeometry(3, 0.35, 0.7).translate(0, 0.175, 0).toNonIndexed(),
+        new THREE.BoxGeometry(3, 0.55, 0.32).translate(0, 0.62, 0).toNonIndexed(),
+      ]) ?? new THREE.BufferGeometry(),
+    );
+    const cone = keep(new THREE.ConeGeometry(0.2, 0.7, 12).translate(0, 0.35, 0));
+    const lampGeo = keep(new THREE.SphereGeometry(0.12, 10, 8));
+    for (const [z, side] of CHICANE) {
+      // Barrier line from the kerb to the centre line.
+      const x0 = CHICANE_X + side * ROAD_HALF;
+      const x1 = CHICANE_X + side * 0.2;
+      const cx = (x0 + x1) / 2;
+      const len = Math.abs(x1 - x0);
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.Mesh(jersey, barrierMat);
+        b.position.set(x0 + (x1 - x0) * ((k + 0.5) / 3), 0, z);
+        b.castShadow = true;
+        b.receiveShadow = true;
+        group.add(b);
+        const lamp = new THREE.Mesh(lampGeo, amber);
+        lamp.position.set(b.position.x, 1.05, z);
+        group.add(lamp);
+        blink.push(lamp);
+      }
+      solid(cx, 0.45, z, len / 2, 0.45, 0.35);
+      // Cones tapering in ahead of each barrier.
+      for (let k = 1; k <= 4; k++) {
+        const c = new THREE.Mesh(cone, coneMat);
+        c.position.set(x0 - side * (k * 1.9), 0, z + 4 + k * 2.2);
+        c.castShadow = true;
+        group.add(c);
+      }
+    }
+    // Lit arrow board warning of the works ahead (both pavements).
+    const arrowTex = keep(
+      canvasTexture(128, (c, sz) => {
+        c.fillStyle = '#111';
+        c.fillRect(0, 0, sz, sz);
+        c.fillStyle = '#ffb21a';
+        for (let k = 0; k < 3; k++) {
+          const x = 14 + k * 36;
+          c.beginPath();
+          c.moveTo(x, 30);
+          c.lineTo(x + 22, sz / 2);
+          c.lineTo(x, sz - 30);
+          c.lineTo(x + 10, sz - 30);
+          c.lineTo(x + 32, sz / 2);
+          c.lineTo(x + 10, 30);
+          c.fill();
+        }
+      }),
+    );
+    for (const side of [-1, 1]) {
+      const board = new THREE.Mesh(
+        keep(new THREE.PlaneGeometry(2.4, 1.4)),
+        keep(new THREE.MeshBasicMaterial({ map: arrowTex, color: new THREE.Color(1.8, 1.8, 1.8), side: THREE.DoubleSide })),
+      );
+      board.position.set(CHICANE_X + side * (ROAD_HALF + 1.2), 2.4, 278);
+      group.add(board);
+      const pole = new THREE.Mesh(unit, metal);
+      pole.scale.set(0.12, 1.8, 0.12);
+      pole.position.set(board.position.x, 0.9, 278.05);
+      group.add(pole);
+    }
+  }
+
   // ---- Pedestrians ------------------------------------------------------------
   const peds = new Pedestrians(walkPaths, low ? 90 : 260, rng);
   group.add(peds.group);
@@ -828,7 +920,10 @@ export function buildCity(ctx: BiomeContext): Biome {
   // ---- Traffic along the course -------------------------------------------------
   const trafficLine = buildTrafficLine(def.trackSpline.map((p) => new THREE.Vector3(...p)));
   // Keep traffic away from the jumps: only on the stretches between them.
-  const segs = trafficSegments(trafficLine, def.stunts.filter((s) => s.type === 'kicker' || s.type === 'carRow').map((s) => new THREE.Vector3(...s.position)));
+  const segs = trafficSegments(trafficLine, [
+    ...def.stunts.filter((s) => s.type === 'kicker' || s.type === 'carRow').map((s) => new THREE.Vector3(...s.position)),
+    new THREE.Vector3(CHICANE_X, 0, 246),
+  ]);
   const traffic: TrafficCar[] = [];
   const trafficKinds: ParkedVehicleKind[] = ['sedan', 'suv', 'robotaxi', 'sedan', 'boxTruck', 'pickup', 'suv'];
   let n = 0;
@@ -890,6 +985,7 @@ export function buildCity(ctx: BiomeContext): Biome {
   group.add(sky.mesh);
   applyLighting(renderer, NIGHT);
 
+  let blinkT = 0;
   let trainZ = METRO.z0;
   let trainDir = -1;
   const camPos = new THREE.Vector3();
@@ -901,6 +997,9 @@ export function buildCity(ctx: BiomeContext): Biome {
       sky.follow(camera);
       camPos.copy(camera.position);
       peds.update(dt, camPos);
+      blinkT += dt;
+      const on = Math.floor(blinkT * 2.2) % 2 === 0;
+      blink.forEach((l, i) => (l.visible = on !== (i % 2 === 0)));
       trainZ += trainDir * 16 * dt;
       if (trainZ < METRO.z1 + 70) trainDir = 1;
       else if (trainZ > METRO.z0) trainDir = -1;

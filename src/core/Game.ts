@@ -12,7 +12,7 @@ import { TiltInput } from '../input/TiltInput';
 import { TouchInput } from '../input/TouchInput';
 import { GroundFX } from '../fx/GroundFX';
 import { Audio } from './Audio';
-import { Campaign, type RunResult } from '../modes/Campaign';
+import { Campaign, insideBox, type RunResult } from '../modes/Campaign';
 import { DragRun, SIXTY_MPH } from '../modes/DragRun';
 import { FreeRoam } from '../modes/FreeRoam';
 import { OnlineRace } from '../modes/OnlineRace';
@@ -632,7 +632,7 @@ export class Game {
           settings: () => this.showSettings(() => this.showPause()),
           quit: () => this.quitToMenu(),
         },
-        !!((s?.campaign && !s.online) || s?.drag),
+        !!((s?.campaign && !s.online) || s?.drag || (s?.free && s.level)),
       ),
       true,
     );
@@ -665,6 +665,11 @@ export class Game {
     this.overlay.hide();
     s?.campaign?.restart();
     s?.drag?.restart();
+    if (s?.free && s.level) {
+      // Back to the start line with the clock reset.
+      this.car.respawn(s.level.spawn, s.level.spawnHeading);
+      s.elapsed = 0;
+    }
   }
 
   private onRunFinished(r: RunResult): void {
@@ -818,6 +823,15 @@ export class Game {
     s.campaign?.step(dt, landing);
     s.drag?.step(dt);
     s.free?.step(dt, this.car.forwardSpeed, this.car.airborne);
+    if (s.free && s.level) {
+      // Free roam still has a finish line: time the run from the start (or the last reset).
+      const f = s.level.def.finish;
+      const t = s.free.checkFinish(insideBox(this.car.simPosition, f.center, f.halfSize, f.heading), s.elapsed);
+      if (t !== null) {
+        this.banner('🏁 到达终点', `用时 ${t.toFixed(1)} 秒 · 暂停菜单「重新开始」可再跑一次`, 'good', 3);
+        this.audio.landing('PERFECT');
+      }
+    }
     s.elapsed += dt;
     this.hazards(s, dt);
   }
