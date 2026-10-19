@@ -67,6 +67,9 @@ export interface ThrustState {
  * Raycast-suspension vehicle on a Rapier rigid body: one ray per wheel,
  * spring-damper + anti-roll, slip-angle lateral grip with a friction circle.
  */
+/** Energy per second flowing in from a landing bonus. */
+const ENERGY_BONUS_RATE = 55;
+
 export class CarController {
   readonly body: RAPIER.RigidBody;
   /** Signed speed along the car's forward axis, m/s. */
@@ -75,6 +78,7 @@ export class CarController {
   /** Boost / hover energy, 0..STUNT_TUNING.energyMax. */
   energy: number;
   readonly energyMax: number;
+  private pendingEnergy = 0;
   /** kg */
   readonly mass: number;
   readonly thrust: ThrustState = { rear: 0, down: 0, left: 0, right: 0 };
@@ -165,6 +169,7 @@ export class CarController {
     this.springScale = perf.massScale;
     this.energyMax = perf.boostCapacity;
     this.energy = this.energyMax;
+    this.pendingEnergy = 0;
     const [hx, hy, hz] = T.chassisHalfExtents;
     const bodyDesc = R.RigidBodyDesc.dynamic()
       .setCanSleep(false)
@@ -240,8 +245,9 @@ export class CarController {
     this.reset();
   }
 
+  /** Bonus energy (e.g. a good landing): flows into the tank over a moment instead of all at once. */
   addEnergy(amount: number): void {
-    this.energy = THREE.MathUtils.clamp(this.energy + amount, 0, this.energyMax);
+    this.pendingEnergy = Math.min(this.pendingEnergy + amount, this.energyMax);
   }
 
   /** Return to the last safe point (checkpoint stand-in until levels exist). */
@@ -494,7 +500,13 @@ export class CarController {
       }
     }
 
-    if (!boosting && !hovering && this.groundedWheels > 0) this.energy += S.passiveRegen * dt;
+    // Steady refill whenever the thrusters are idle, on the ground or in the air.
+    if (!boosting && !hovering) this.energy += S.passiveRegen * dt;
+    if (this.pendingEnergy > 0) {
+      const flow = Math.min(this.pendingEnergy, ENERGY_BONUS_RATE * dt);
+      this.energy += flow;
+      this.pendingEnergy -= flow;
+    }
     this.energy = THREE.MathUtils.clamp(this.energy, 0, this.energyMax);
   }
 

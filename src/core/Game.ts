@@ -812,6 +812,7 @@ export class Game {
     const landing = this.landing.update(dt, this.car);
     if (landing && s.kind !== 'menu') {
       this.car.addEnergy(STUNT_TUNING.landingRegen[landing.grade]);
+      this.hud.energyBonus((STUNT_TUNING.landingRegen[landing.grade] / this.car.energyMax) * 100);
       this.hud.showLanding(landing);
       this.audio.landing(landing.grade);
       this.chase.addShake(landing.grade === 'CRASH' ? 1 : landing.grade === 'BAD' ? 0.6 : 0.3 + Math.min(landing.airTime, 3) * 0.08);

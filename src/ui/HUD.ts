@@ -106,15 +106,6 @@ export class HUD {
   setEnergy(fraction: number, active: boolean): void {
     const pct = Math.round(fraction * 100);
     if (pct !== this.lastEnergyPct) {
-      // A sudden refill (good landing) pops a "+N" next to the gauge.
-      if (this.lastEnergyPct >= 0 && pct - this.lastEnergyPct >= 4) {
-        this.energyGain.textContent = `+${pct - this.lastEnergyPct}`;
-        this.energyGain.classList.remove('show');
-        void this.energyGain.offsetWidth;
-        this.energyGain.classList.add('show');
-        window.clearTimeout(this.gainTimer);
-        this.gainTimer = window.setTimeout(() => this.energyGain.classList.remove('show'), 1200);
-      }
       this.energyFill.style.transform = `scaleX(${pct / 100})`;
       this.energyPct.textContent = pct <= 0 ? '能量耗尽' : `${pct}%`;
       this.lastEnergyPct = pct;
@@ -123,6 +114,17 @@ export class HUD {
     this.energyBar.classList.toggle('mid', pct < 45 && pct >= 20);
     this.energyBar.classList.toggle('low', pct < 20);
     this.energyPct.classList.toggle('empty', pct <= 0);
+  }
+
+  /** "+N" next to the gauge when a landing earns bonus energy (it then flows in). */
+  energyBonus(amount: number): void {
+    if (amount <= 0) return;
+    this.energyGain.textContent = `+${Math.round(amount)}`;
+    this.energyGain.classList.remove('show');
+    void this.energyGain.offsetWidth;
+    this.energyGain.classList.add('show');
+    window.clearTimeout(this.gainTimer);
+    this.gainTimer = window.setTimeout(() => this.energyGain.classList.remove('show'), 1400);
   }
 
   showLanding(r: LandingResult): void {
