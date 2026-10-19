@@ -30,6 +30,9 @@ export class HUD {
   private readonly autoThrottleToggle: HTMLDivElement;
   private readonly energyFill: HTMLDivElement;
   private readonly energyBar: HTMLDivElement;
+  private readonly energyPct: HTMLSpanElement;
+  private readonly energyGain: HTMLDivElement;
+  private gainTimer = 0;
   private readonly gradeEl: HTMLDivElement;
   private readonly race: HTMLDivElement;
   private readonly timerEl: HTMLDivElement;
@@ -60,8 +63,15 @@ export class HUD {
     const speed = el('div', 'hud-speed', root);
     this.speedValue = el('div', 'value', speed);
     this.speedUnit = el('div', 'unit', speed);
-    this.energyBar = el('div', 'energy', speed);
+    // Thrust energy: shared by BOOST, jump and hover; refills on the ground and from good landings.
+    const gauge = el('div', 'energy-gauge', speed);
+    const head = el('div', 'energy-head', gauge);
+    el('span', 'energy-label', head).textContent = '⚡ 推进能量';
+    this.energyPct = el('span', 'energy-pct', head);
+    this.energyBar = el('div', 'energy', gauge);
     this.energyFill = el('div', 'energy-fill', this.energyBar);
+    el('div', 'energy-ticks', this.energyBar);
+    this.energyGain = el('div', 'energy-gain', gauge);
 
     this.gradeEl = el('div', 'grade', root);
 
@@ -96,11 +106,23 @@ export class HUD {
   setEnergy(fraction: number, active: boolean): void {
     const pct = Math.round(fraction * 100);
     if (pct !== this.lastEnergyPct) {
+      // A sudden refill (good landing) pops a "+N" next to the gauge.
+      if (this.lastEnergyPct >= 0 && pct - this.lastEnergyPct >= 4) {
+        this.energyGain.textContent = `+${pct - this.lastEnergyPct}`;
+        this.energyGain.classList.remove('show');
+        void this.energyGain.offsetWidth;
+        this.energyGain.classList.add('show');
+        window.clearTimeout(this.gainTimer);
+        this.gainTimer = window.setTimeout(() => this.energyGain.classList.remove('show'), 1200);
+      }
       this.energyFill.style.transform = `scaleX(${pct / 100})`;
+      this.energyPct.textContent = pct <= 0 ? '能量耗尽' : `${pct}%`;
       this.lastEnergyPct = pct;
     }
     this.energyBar.classList.toggle('active', active);
-    this.energyBar.classList.toggle('low', pct < 15);
+    this.energyBar.classList.toggle('mid', pct < 45 && pct >= 20);
+    this.energyBar.classList.toggle('low', pct < 20);
+    this.energyPct.classList.toggle('empty', pct <= 0);
   }
 
   showLanding(r: LandingResult): void {

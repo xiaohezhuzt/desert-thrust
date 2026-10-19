@@ -58,6 +58,8 @@ export class TouchControls {
   private readonly held = new Map<ButtonKey, Set<number>>();
   private readonly buttonEls = new Map<ButtonKey, HTMLElement>();
   private stickCx = 0;
+  private readonly energyButtons: HTMLDivElement[] = [];
+  private lastEnergy = -1;
   private stickCy = 0;
 
   constructor(parent: HTMLElement) {
@@ -75,8 +77,7 @@ export class TouchControls {
 
     this.button('throttle', 'btn btn-throttle', '油门');
     this.button('brake', 'btn btn-brake', '刹车');
-    this.button('boost', 'btn btn-boost', 'BOOST');
-    this.button('jump', 'btn btn-jump', 'JUMP');
+    this.energyButtons.push(this.button('boost', 'btn btn-boost', 'BOOST'), this.button('jump', 'btn btn-jump', 'JUMP'));
     this.rollButtons.push(this.button('rollLeft', 'btn btn-roll btn-roll-left', '⟲'));
     this.rollButtons.push(this.button('rollRight', 'btn btn-roll btn-roll-right', '⟳'));
     this.setAirborne(false);
@@ -112,6 +113,17 @@ export class TouchControls {
   setVisible(visible: boolean): void {
     this.root.classList.toggle('hidden', !visible);
     if (!visible) this.releaseAll();
+  }
+
+  /** Remaining thrust energy (0..1) drawn as a ring on BOOST and JUMP. */
+  setEnergy(fraction: number): void {
+    const pct = Math.round(fraction * 100);
+    if (pct === this.lastEnergy) return;
+    this.lastEnergy = pct;
+    for (const b of this.energyButtons) {
+      b.style.setProperty('--e', String(pct));
+      b.classList.toggle('empty', pct <= 0);
+    }
   }
 
   /** Roll buttons only appear in the air, to avoid accidental taps. */

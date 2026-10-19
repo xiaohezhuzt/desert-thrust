@@ -998,6 +998,7 @@ export class Game {
     const hud = this.hud;
     hud.setSpeed(this.car.forwardSpeed, this.settings.units);
     hud.setEnergy(this.car.energy / this.car.energyMax, this.car.thrust.rear > 0 || this.car.thrust.down > 0.5);
+    this.touchControls.setEnergy(this.car.energy / this.car.energyMax);
     if (!s) return;
     const c = s.campaign;
     if (c) {
