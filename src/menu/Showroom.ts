@@ -16,9 +16,11 @@ const SEAT = new THREE.Vector3(-0.33, 0.5, 0.45);
 /** Idle heading: turned toward the title-screen camera. */
 const IDLE_YAW = 0.8;
 /** Boarding timeline (seconds): the race version starts at the door and runs faster. */
-const RACE_START = 1.6;
-const RACE_SPEED = 1.35;
+/** Race version: same sequence from a spot beside the car, sped up to fit the 3 s countdown. */
+const RACE_WAIT = new THREE.Vector3(-2.1, 0, -0.5);
 const DONE_AT = 5.2;
+/** Seated with the door shut 2.9 s into the 3 s countdown. */
+const RACE_SPEED = DONE_AT / 2.9;
 
 const ease = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 const seg = (t: number, a: number, b: number): number => ease((t - a) / (b - a));
@@ -39,12 +41,15 @@ export class Showroom {
   private readonly doorMats: THREE.Material[] = [];
   private t = 0;
   private boardT = -1;
+  /** Seconds into the race countdown (set by the game each frame). */
+  raceClock: number | null = null;
+  private readonly start: THREE.Vector3;
+  private readonly startYaw: number;
   private onBoarded: (() => void) | null = null;
   private readonly tmp = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   private readonly camPos = new THREE.Vector3();
   private readonly camLook = new THREE.Vector3();
-  private readonly right = new THREE.Vector3();
   private camInit = false;
 
   constructor(
@@ -53,6 +58,8 @@ export class Showroom {
     paint: THREE.Material,
     private readonly mode: 'menu' | 'race',
   ) {
+    this.start = mode === 'race' ? RACE_WAIT : WAIT;
+    this.startYaw = mode === 'race' ? 0 : IDLE_YAW;
     const { joints, dispose } = createOptimus();
     this.robot = joints;
     this.disposeRobot = dispose;
@@ -90,13 +97,8 @@ export class Showroom {
     this.boardT = -1;
     this.onBoarded = null;
     this.robot.root.visible = true;
-    if (this.mode === 'race') {
-      this.robot.root.position.copy(AT_DOOR);
-      this.robot.root.rotation.set(0, -Math.PI / 2, 0);
-    } else {
-      this.robot.root.position.copy(WAIT);
-      this.robot.root.rotation.set(0, IDLE_YAW, 0);
-    }
+    this.robot.root.position.copy(this.start);
+    this.robot.root.rotation.set(0, this.startYaw, 0);
     this.setDoor(0);
     this.camInit = false;
   }
@@ -104,7 +106,7 @@ export class Showroom {
   /** Race start: get in during the countdown (≈3 s; skips the walk, already at the door). */
   boardForCountdown(done?: () => void): void {
     this.reset();
-    this.boardT = RACE_START;
+    this.boardT = 0;
     this.onBoarded = done ?? null;
   }
 
@@ -159,14 +161,17 @@ export class Showroom {
     } else if (this.boardT >= DONE_AT && this.mode === 'race') {
       r.root.visible = false;
     } else {
-      this.boardT += dt * (this.mode === 'race' ? RACE_SPEED : 1);
+      // The race version follows the countdown clock, so it always ends right at GO.
+      if (this.mode === 'race' && this.raceClock !== null) this.boardT = Math.max(this.boardT, this.raceClock * RACE_SPEED);
+      else this.boardT += dt;
       const b = this.boardT;
       // 0.0–1.6 walk to the door, 1.6–2.4 open it, 2.4–3.6 climb in, 3.6–4.2 shut, 4.2–5.2 wake-up.
       const walk = seg(b, 0, 1.6);
-      const facing = Math.atan2(-(AT_DOOR.x - WAIT.x), -(AT_DOOR.z - WAIT.z));
-      if (b < 1.6 && this.mode === 'menu') {
-        r.root.position.lerpVectors(WAIT, AT_DOOR, walk);
-        r.root.rotation.y = THREE.MathUtils.lerp(IDLE_YAW, facing, Math.min(1, b * 2.5));
+      const from = this.start;
+      const facing = Math.atan2(-(AT_DOOR.x - from.x), -(AT_DOOR.z - from.z));
+      if (b < 1.6) {
+        r.root.position.lerpVectors(from, AT_DOOR, walk);
+        r.root.rotation.y = THREE.MathUtils.lerp(this.startYaw, facing, Math.min(1, b * 2.5));
         const ph = b * 7.5;
         const s = Math.sin(ph) * (1 - seg(b, 1.3, 1.6));
         r.hipL.rotation.x = s * 0.5;
@@ -178,7 +183,7 @@ export class Showroom {
         r.hips.position.y = 0.94 - Math.abs(Math.sin(ph)) * 0.025;
       } else {
         // Turn to face the car (+X) at the door.
-        r.root.rotation.y = this.mode === 'race' ? -Math.PI / 2 : THREE.MathUtils.lerp(facing, -Math.PI / 2, seg(b, 1.6, 2.0));
+        r.root.rotation.y = THREE.MathUtils.lerp(facing, -Math.PI / 2, seg(b, 1.6, 2.0));
       }
       // Reach for the door and lift it.
       const open = seg(b, 1.9, 2.5) * (1 - seg(b, 3.6, 4.2));
@@ -216,18 +221,12 @@ export class Showroom {
     }
 
     if (!camera) return;
-    // Camera: a low three-quarter view of robot and car (no endless orbit), drifting gently.
-    // The subject sits right of centre so the menu on the left doesn't cover it.
-    const sway = Math.sin(t * 0.18) * 0.35;
-    const closer = this.mode === 'race' ? 1 : this.boardT >= 0 ? seg(this.boardT, 0, 2.2) : 0;
-    this.tmp.set(-5.4 + closer * 1.4 + sway, 1.25 - closer * 0.15, -4.4 + closer * 1.5);
+    // Race start: a rear three-quarter shot from the driver's side, so you see the robot walk
+    // over and climb in with the road ahead; the chase camera takes over at GO.
+    this.tmp.set(-3.6, 1.9, 5.4);
     this.carRoot.localToWorld(this.tmp);
-    this.look.set(-0.6 - closer * 0.4, 0.85, 0.2 - closer * 0.2);
+    this.look.set(-0.7, 0.75, -1.4);
     this.carRoot.localToWorld(this.look);
-    // Aim left of the subject so it sits in the right half of the screen (wide screens only).
-    const wide = this.mode === 'menu' ? THREE.MathUtils.clamp((camera.aspect - 1) * 1.6, 0, 1) : 0;
-    this.right.subVectors(this.look, this.tmp).cross(camera.up).normalize();
-    this.look.addScaledVector(this.right, -2.6 * wide * (1 - closer * 0.6));
     if (!this.camInit) {
       this.camPos.copy(this.tmp);
       this.camLook.copy(this.look);

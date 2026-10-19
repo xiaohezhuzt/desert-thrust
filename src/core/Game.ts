@@ -874,10 +874,16 @@ export class Game {
     if (this.debugOrbit) {
       const [yaw, pitch, dist] = this.debugOrbit;
       this.orbit(yaw, pitch, dist);
-    } else if (s?.showroom && (s.kind === 'menu' || s.campaign?.phase === 'countdown')) {
+    } else if (s?.showroom && s.kind === 'menu') {
+      // Title screen: the robot stands by the car while the camera slowly circles them.
+      s.showroom.update(frameDt, null);
+      this.menuAngle += frameDt * 0.12;
+      this.orbit(this.menuAngle - 2.3, 0.12, 8);
+    } else if (s?.showroom && s.campaign?.phase === 'countdown') {
       // Title screen, or the robot climbing in during the race countdown
       // (a run that restarts from the grid gets back in again).
       if (s.kind === 'campaign' && this.lastPhase !== 'countdown' && s.showroom.seated) s.showroom.boardForCountdown();
+      s.showroom.raceClock = s.campaign?.countdownElapsed ?? null;
       s.showroom.update(frameDt, cam);
       this.robotCam = true;
     } else if (s?.kind === 'menu') {

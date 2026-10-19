@@ -117,6 +117,11 @@ export class Campaign {
     this.gates = def.gates.map((g) => ({ def: g, status: 'pending', grade: null, wasInverted: false, wasOnWall: false }));
   }
 
+  /** Seconds since the 3-2-1 began (0..COUNTDOWN), for animations that must finish by GO. */
+  get countdownElapsed(): number {
+    return this.phase === 'countdown' ? Math.max(0, COUNTDOWN - this.countdown) : COUNTDOWN;
+  }
+
   /** Controls are frozen during the countdown and after the run ends. */
   get controlsLocked(): boolean {
     return this.phase !== 'racing';
