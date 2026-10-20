@@ -148,10 +148,24 @@ export class Game {
     for (const [id, rec] of Object.entries(this.progress.levels)) {
       if (rec.stars > 0) this.progress.unlocked = Math.max(this.progress.unlocked, Math.min(Number(id) + 1, lastId));
     }
-    // Always the best picture: no quality menu, no automatic downgrade (`?tier=` still forces one for testing).
-    this.tier = forcedTier ?? 'high';
+    // Best picture on iPad / computers. Phones start at what they can handle (full quality
+    // runs them out of graphics memory and the page never opens); `?quality=` forces one.
+    this.tier = forcedTier ?? (profile.isPhone ? profile.recommendedTier : 'high');
 
     this.renderer = new Renderer(viewport, QUALITY[this.tier]);
+    // If the browser drops the GPU context (out of graphics memory, common on phones),
+    // reload once at low quality instead of leaving a frozen/blank page.
+    this.renderer.renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      const url = new URL(location.href);
+      if (url.searchParams.get('quality') === 'low') return;
+      url.searchParams.set('quality', 'low');
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<div style="position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12;color:#f4f1ea;font:600 16px system-ui;z-index:99">画面内存不足，正在以低画质重新加载…</div>',
+      );
+      window.setTimeout(() => location.replace(url.toString()), 600);
+    });
     this.renderer.setFog(0xe7a46a);
     this.physics = new Physics(rapier);
 
@@ -211,7 +225,8 @@ export class Game {
     this.audio.setVolumes(this.settings.sfxVolume, this.settings.musicVolume);
 
     this.perf = new PerfMonitor(() => this.degrade());
-    this.perf.enabled = false;
+    // Phones step down automatically if they still struggle; other devices stay at full quality.
+    this.perf.enabled = profile.isPhone && !forcedTier;
 
     this.loop = new GameLoop(
       1 / QUALITY[this.tier].physicsHz,
