@@ -23,7 +23,9 @@ function nameTag(name: string, color: number): THREE.Sprite {
   if (ctx) {
     ctx.fillStyle = 'rgba(10,12,18,0.72)';
     ctx.beginPath();
-    ctx.roundRect(4, 8, 248, 48, 24);
+    // roundRect is missing on older Safari: fall back to a plain rectangle.
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(4, 8, 248, 48, 24);
+    else ctx.rect(4, 8, 248, 48);
     ctx.fill();
     ctx.fillStyle = `#${new THREE.Color(color).getHexString()}`;
     ctx.beginPath();

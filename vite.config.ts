@@ -10,7 +10,8 @@ export default defineConfig({
     // Online play in dev: run `npm run dev:server` alongside `npm run dev`.
     proxy: { '/ws': { target: 'ws://localhost:8787', ws: true } },
   },
-  build: { target: 'es2022', chunkSizeWarningLimit: 4000 },
+  // Older phone browsers (iOS Safari 14+, Chrome 87+) must be able to parse the bundle.
+  build: { target: ['es2020', 'safari14', 'chrome87', 'firefox78'], chunkSizeWarningLimit: 4000 },
   optimizeDeps: { exclude: ['@dimforge/rapier3d-compat'] },
   plugins: [
     VitePWA({

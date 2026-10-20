@@ -24,9 +24,57 @@
     <div id="boot" style="position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12;color:#f4f1ea;font:600 16px system-ui,sans-serif;letter-spacing:.1em">
       <div style="text-align:center">
         <div style="font:900 italic clamp(28px,7vmin,56px) system-ui,sans-serif;letter-spacing:.06em">TESLA ROADSTER</div><div style="margin-top:6px;font:800 clamp(14px,3vmin,20px) system-ui,sans-serif;letter-spacing:.16em">特斯拉 Roadster 3D 赛车闯关</div>
-        <div style="margin-top:10px;opacity:.6">加载中…</div>
+        <div id="boot-msg" style="margin-top:10px;opacity:.6">加载中…</div>
       </div>
     </div>
+    <!-- Plain (non-module) script: runs even on browsers too old to load the game, and shows
+         what went wrong instead of an endless loading screen. -->
+    <script>
+      (function () {
+        var shown = false;
+        function show(title, detail) {
+          if (shown) return;
+          var boot = document.getElementById('boot');
+          var msg = document.getElementById('boot-msg');
+          if (!boot || !msg) return;
+          shown = true;
+          msg.style.opacity = '1';
+          msg.style.maxWidth = '86vw';
+          msg.style.lineHeight = '1.6';
+          msg.style.letterSpacing = '0';
+          msg.style.font = '500 14px system-ui,sans-serif';
+          msg.innerHTML = '';
+          var t = document.createElement('div');
+          t.style.cssText = 'font-weight:800;font-size:16px;color:#ffb21a;margin-bottom:6px';
+          t.textContent = title;
+          var d = document.createElement('div');
+          d.textContent = detail;
+          var ua = document.createElement('div');
+          ua.style.cssText = 'margin-top:8px;opacity:.55;font-size:11px;word-break:break-all';
+          ua.textContent = navigator.userAgent;
+          msg.appendChild(t);
+          msg.appendChild(d);
+          msg.appendChild(ua);
+        }
+        window.__bootFailed = show;
+        window.addEventListener('error', function (e) {
+          if (document.getElementById('boot')) show('启动出错（请截图发给开发者）', String(e.message || e.error || '未知错误'));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var m = String((e.reason && e.reason.message) || e.reason || '未知错误');
+          // The offline cache (service worker) failing is harmless: the game still runs.
+          if (/ServiceWorker|service worker/i.test(m)) return;
+          if (document.getElementById('boot')) show('启动出错（请截图发给开发者）', m);
+        });
+        // Still on the loading screen after a long wait: probably a slow first load or an old browser.
+        setTimeout(function () {
+          if (document.getElementById('boot'))
+            show('加载时间过长', '首次打开服务器可能在唤醒（约 1 分钟），请稍候再刷新。如果一直这样，请把浏览器更新到最新版（iOS 15 以上 Safari 或最新 Chrome），不要在微信等 App 内置浏览器里打开。');
+        }, 45000);
+        if (!('noModule' in HTMLScriptElement.prototype) || typeof WebAssembly !== 'object')
+          show('浏览器版本太旧', '这个游戏需要支持 WebAssembly 和 ES 模块的浏览器。请更新系统或使用最新版 Safari / Chrome。');
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
