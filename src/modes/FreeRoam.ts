@@ -2,6 +2,8 @@
  * Free Roam: an unlocked scene with no opponents or stunt gates. Tracks a few fun
  * stats for the HUD line, and times start-to-finish runs when the scene has a finish.
  */
+const COUNTDOWN = 3;
+
 export class FreeRoam {
   topSpeed = 0;
   airTime = 0;
@@ -9,6 +11,33 @@ export class FreeRoam {
   best: number | null = null;
   private flight = 0;
   private atFinish = false;
+  /** 3-2-1 before driving (the robot climbs in meanwhile). */
+  private countdown = COUNTDOWN;
+  private lastCount = -1;
+
+  get counting(): boolean {
+    return this.countdown > 0;
+  }
+
+  /** Seconds since the countdown began (for the boarding animation). */
+  get countdownElapsed(): number {
+    return COUNTDOWN - Math.max(this.countdown, 0);
+  }
+
+  restartCountdown(): void {
+    this.countdown = COUNTDOWN;
+    this.lastCount = -1;
+  }
+
+  /** Advance the countdown; returns the number to show when it changes (0 = GO), else null. */
+  tickCountdown(dt: number): number | null {
+    if (this.countdown <= 0) return null;
+    this.countdown -= dt;
+    const n = Math.max(0, Math.ceil(this.countdown));
+    if (n === this.lastCount) return null;
+    this.lastCount = n;
+    return n;
+  }
 
   /** Call each step with whether the car is inside the finish box; returns the run time when it just arrived. */
   checkFinish(inside: boolean, elapsed: number): number | null {

@@ -123,8 +123,6 @@ export class Game {
   private stepCount = 0;
   private blur = 0;
   private menuAngle = 0;
-  /** The boarding shot is on screen (switch to the chase camera when it ends). */
-  private robotCam = false;
   /** Campaign phase last frame (to spot a fresh countdown after a full restart). */
   private lastPhase: string | null = null;
   private interiorShown = true;
@@ -356,7 +354,7 @@ export class Game {
       opponents,
       minimap,
       showroom:
-        kind === 'menu' || kind === 'campaign' || kind === 'online'
+        kind === 'menu' || kind === 'campaign' || kind === 'online' || (kind === 'free' && levelId !== null)
           ? new Showroom(this.carRoot, this.carBody, this.paintMaterial(), kind === 'menu' ? 'menu' : 'race')
           : null,
       elapsed: 0,
@@ -671,6 +669,8 @@ export class Game {
       // Back to the start line with the clock reset.
       this.car.respawn(s.level.spawn, s.level.spawnHeading);
       s.elapsed = 0;
+      s.free.restartCountdown();
+      s.showroom?.boardForCountdown();
     }
   }
 
@@ -786,7 +786,7 @@ export class Game {
   }
 
   private controlsLocked(s: Session): boolean {
-    return s.kind === 'menu' || (s.campaign?.controlsLocked ?? false) || (s.drag?.controlsLocked ?? false);
+    return s.kind === 'menu' || (s.campaign?.controlsLocked ?? false) || (s.drag?.controlsLocked ?? false) || (s.free?.counting ?? false);
   }
 
   private step(dt: number): void {
@@ -834,6 +834,12 @@ export class Game {
         this.banner('🏁 到达终点', `用时 ${t.toFixed(1)} 秒 · 暂停菜单「重新开始」可再跑一次`, 'good', 3);
         this.audio.landing('PERFECT');
       }
+    }
+    // Free roam: 3-2-1 (the robot gets in) before the clock starts.
+    if (s.free) {
+      const n = s.free.tickCountdown(dt);
+      if (n !== null) this.banner(n > 0 ? String(n) : 'GO!', n > 0 ? '自由驾驶' : '', n > 0 ? 'info' : 'good', n > 0 ? 0.9 : 1.1);
+      if (s.free.counting) return;
     }
     s.elapsed += dt;
     this.hazards(s, dt);
@@ -896,30 +902,25 @@ export class Game {
       s.showroom.update(frameDt, null);
       this.menuAngle += frameDt * 0.12;
       this.orbit(this.menuAngle - 2.3, 0.12, 8);
-    } else if (s?.showroom && s.campaign?.phase === 'countdown') {
-      s.showroom.raceClock = s.campaign.countdownElapsed;
-      // Title screen, or the robot climbing in during the race countdown
-      // (a run that restarts from the grid gets back in again).
-      if (s.kind === 'campaign' && this.lastPhase !== 'countdown' && s.showroom.seated) s.showroom.boardForCountdown();
-      s.showroom.update(frameDt, cam);
-      this.robotCam = true;
     } else if (s?.kind === 'menu') {
       this.menuAngle += frameDt * 0.12;
       this.orbit(this.menuAngle - 2.3, 0.12, 7.5);
     } else {
-      if (this.robotCam) {
-        // Cut from the boarding shot to the chase camera at GO.
-        this.robotCam = false;
-        this.chase.snap();
+      // Race / free-roam start: the robot climbs in during 3-2-1, seen from the normal chase
+      // camera behind the car (no camera cut). A run restarted from the grid boards again.
+      if (s?.showroom) {
+        if (s.kind === 'campaign' && s.campaign?.phase === 'countdown' && this.lastPhase !== 'countdown' && s.showroom.seated) {
+          s.showroom.boardForCountdown();
+        }
+        s.showroom.raceClock = s.campaign?.countdownElapsed ?? s.free?.countdownElapsed ?? null;
+        s.showroom.update(frameDt, null);
       }
-      if (s?.showroom) s.showroom.raceClock = s.campaign?.countdownElapsed ?? null;
-      s?.showroom?.update(frameDt, null);
       if (this.car.thrust.rear > 0) this.chase.addShake(realDt * 0.6);
       this.chase.update(frameDt, p, this.car.renderQuaternion, this.car.forwardSpeed, this.car.onAdhesive, realDt);
     }
     this.lastPhase = s?.campaign?.phase ?? null;
     // The cabin is hidden only while looking out from the driver's seat.
-    const interior = !(this.chase.mode === 'cockpit' && !this.robotCam && s?.kind !== 'menu' && !this.debugOrbit);
+    const interior = !(this.chase.mode === 'cockpit' && s?.kind !== 'menu' && !this.debugOrbit);
     if (interior !== this.interiorShown) {
       this.interiorShown = interior;
       setCarInterior(this.carRoot, interior);
@@ -934,7 +935,7 @@ export class Game {
 
     if (this.thrusters) {
       this.thrusters.setViewport(this.renderer.drawingHeight, cam.fov);
-      const boarding = s?.showroom && (s.kind === 'menu' || s.campaign?.phase === 'countdown');
+      const boarding = s?.showroom && (s.kind === 'menu' || s.campaign?.phase === 'countdown' || s.free?.counting);
       this.thrusters.update(frameDt, boarding ? s!.showroom!.thrust : this.car.thrust, this.carRoot, this.car.probeGroundY());
     }
     this.touchControls.setAirborne(this.car.airborne);
