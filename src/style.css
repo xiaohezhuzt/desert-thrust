@@ -634,6 +634,9 @@ html, body {
 .rotate-phone { font-size: 64px; animation: rotate-phone 1.8s ease-in-out infinite; }
 .rotate-title { font-size: 22px; font-weight: 800; margin-top: 12px; }
 .rotate-sub { color: var(--fg-dim); margin-top: 6px; }
+.rotate-box { display: flex; flex-direction: column; align-items: center; padding: 0 max(16px, env(safe-area-inset-left, 0px)); }
+.rotate-tip { color: var(--fg-dim); margin-top: 14px; max-width: 300px; font-size: 13px; line-height: 1.6; }
+.rotate-keep { margin-top: 22px; min-width: 200px; min-height: 48px; font-size: 16px; }
 @keyframes rotate-phone { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
 
 .menu-hint { font-size: 13px; color: var(--fg-dim); max-width: 340px; line-height: 1.5; }
@@ -679,3 +682,17 @@ html, body {
 .level-name { font-weight: 700; }
 .result-panel tr.me td { color: var(--accent); }
 .result-panel td.rank { width: 32px; font-weight: 900; }
+
+/* ---------- Portrait phones (playing upright) ---------- */
+@media (orientation: portrait) and (pointer: coarse) {
+  /* Top-left: pause + camera, auto-throttle below; top-right: speed + energy. */
+  .hud-pause { right: auto; left: calc(var(--safe-l) + var(--u)); }
+  .hud-camera { right: auto; left: calc(var(--safe-l) + var(--u) + 62px); }
+  .hud-toggle { left: calc(var(--safe-l) + var(--u)); top: calc(var(--safe-t) + var(--u) + 60px); }
+  .minimap { top: calc(var(--safe-t) + var(--u) + 112px); width: 92px; height: 92px; }
+  /* Timer / place / status under the top rows, full width. */
+  .race { top: calc(var(--safe-t) + 150px); width: min(86vw, 360px); }
+  .race-info { white-space: normal; font-size: 12px; }
+  /* The key hint bar would cover the pedals. */
+  .hud-hint { display: none; }
+}

@@ -38,7 +38,7 @@ import { createOpponentCar, opponentGeometry } from '../vehicle/OpponentModel';
 import { Thrusters } from '../vehicle/Thrusters';
 import { Level } from '../world/Level';
 import { createSkyEnvironmentScene, createTestGround, type TestGround } from '../world/TestGround';
-import { ChaseCamera } from './ChaseCamera';
+import { ChaseCamera, portraitFov } from './ChaseCamera';
 import { lowerTier, type DeviceProfile } from './DeviceProfile';
 import { disposeObject } from './dispose';
 import { GameLoop } from './GameLoop';
@@ -1001,6 +1001,11 @@ export class Game {
 
   private orbit(yaw: number, pitch: number, dist: number): void {
     const cam = this.renderer.camera;
+    const fov = portraitFov(62, cam.aspect);
+    if (Math.abs(cam.fov - fov) > 0.01) {
+      cam.fov = fov;
+      cam.updateProjectionMatrix();
+    }
     const p = this.car.renderPosition;
     cam.up.set(0, 1, 0);
     cam.position.set(

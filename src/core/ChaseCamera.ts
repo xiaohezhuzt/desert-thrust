@@ -4,6 +4,17 @@ import { CAMERA_TUNING as C } from '../config/tuning';
 export type CameraMode = 'chase' | 'cockpit';
 
 /** Spring-follow chase camera (FOV widens with speed) plus a cockpit view. */
+/**
+ * Vertical FOV for the screen shape: on a tall (portrait) screen, widen it so the road
+ * still fills the width instead of a narrow slice.
+ */
+export function portraitFov(fov: number, aspect: number): number {
+  if (aspect >= 1) return fov;
+  const half = THREE.MathUtils.degToRad(fov / 2);
+  const wide = THREE.MathUtils.radToDeg(2 * Math.atan((Math.tan(half) / aspect) * 0.8));
+  return THREE.MathUtils.clamp(wide, fov, 100);
+}
+
 export class ChaseCamera {
   mode: CameraMode = 'chase';
 
@@ -85,8 +96,9 @@ export class ChaseCamera {
     const speedFrac = Math.min(Math.abs(speed) / C.fovSpeedRef, 1);
     const targetFov = THREE.MathUtils.lerp(C.baseFov, C.maxFov, speedFrac * speedFrac);
     this.fov += (targetFov - this.fov) * (1 - Math.exp(-C.fovSmoothing * dt));
-    if (Math.abs(this.camera.fov - this.fov) > 0.01) {
-      this.camera.fov = this.fov;
+    const fov = portraitFov(this.fov, this.camera.aspect);
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
   }
