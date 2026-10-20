@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { ParkedVehicleKind } from '../config/levels';
 
 /** Material slots shared by all parked vehicles. */
-type Slot = 'body' | 'glass' | 'dark' | 'wheel' | 'lamp';
+type Slot = 'body' | 'glass' | 'dark' | 'wheel' | 'lamp' | 'tail';
 
 interface Part {
   slot: Slot;
@@ -23,8 +23,26 @@ export interface VehicleShape {
 
 const WHEEL_SIZE = (r: number, w: number): [number, number, number] => [r, w, r];
 
-/** Original low-poly vehicles. Local frame: length along X, ground at y = 0. */
+/**
+ * Every vehicle gets a pair of white headlights at the nose (-X) and red tail lights at
+ * the back (+X), so it's obvious which way it faces.
+ */
 function shapeOf(kind: ParkedVehicleKind): VehicleShape {
+  const base = baseShape(kind);
+  const bar = base.parts.find((p) => p.slot === 'lamp');
+  const y = bar ? bar.pos[1] : 0.8;
+  const front = -base.length / 2 - 0.02;
+  const rear = base.length / 2 + 0.02;
+  const z = base.width / 2 - 0.3;
+  const lights: Part[] = [-1, 1].flatMap((side): Part[] => [
+    { slot: 'lamp', size: [0.06, 0.16, 0.38], pos: [front, y, side * z] },
+    { slot: 'tail', size: [0.06, 0.14, 0.42], pos: [rear, y + 0.05, side * z] },
+  ]);
+  return { ...base, parts: [...base.parts, ...lights] };
+}
+
+/** Original low-poly vehicles. Local frame: length along X (nose at -X), ground at y = 0. */
+function baseShape(kind: ParkedVehicleKind): VehicleShape {
   const wheels = (r: number, xs: number[], halfTrack: number, w = 0.26): Part[] =>
     xs.flatMap((x) => [-1, 1].map((s): Part => ({ slot: 'wheel', size: WHEEL_SIZE(r, w), pos: [x, r, s * halfTrack] })));
 
@@ -37,7 +55,7 @@ function shapeOf(kind: ParkedVehicleKind): VehicleShape {
         parts: [
           { slot: 'body', size: [5.3, 0.62, 1.96], pos: [0, 0.78, 0] },
           { slot: 'body', size: [2.1, 0.75, 1.9], pos: [-0.55, 1.45, 0] },
-          { slot: 'glass', size: [2.0, 0.55, 1.92], pos: [-0.55, 1.47, 0] },
+          { slot: 'glass', size: [2.14, 0.55, 1.92], pos: [-0.55, 1.47, 0] },
           { slot: 'body', size: [2.2, 0.38, 0.08], pos: [1.55, 1.27, 0.94] },
           { slot: 'body', size: [2.2, 0.38, 0.08], pos: [1.55, 1.27, -0.94] },
           { slot: 'dark', size: [5.4, 0.22, 2.0], pos: [0, 0.42, 0] },
@@ -67,7 +85,7 @@ function shapeOf(kind: ParkedVehicleKind): VehicleShape {
         parts: [
           { slot: 'body', size: [4.7, 0.8, 1.92], pos: [0, 0.82, 0] },
           { slot: 'body', size: [3.0, 0.6, 1.8], pos: [0.3, 1.45, 0] },
-          { slot: 'glass', size: [2.9, 0.45, 1.82], pos: [0.3, 1.45, 0] },
+          { slot: 'glass', size: [3.04, 0.45, 1.82], pos: [0.3, 1.45, 0] },
           { slot: 'dark', size: [4.8, 0.2, 1.96], pos: [0, 0.45, 0] },
           { slot: 'lamp', size: [0.05, 0.1, 1.5], pos: [-2.36, 1.0, 0] },
           ...wheels(0.4, [-1.45, 1.45], 0.84),
@@ -81,7 +99,7 @@ function shapeOf(kind: ParkedVehicleKind): VehicleShape {
         parts: [
           { slot: 'body', size: [4.6, 0.6, 1.82], pos: [0, 0.68, 0] },
           { slot: 'body', size: [2.3, 0.45, 1.66], pos: [0.15, 1.18, 0] },
-          { slot: 'glass', size: [2.2, 0.36, 1.68], pos: [0.15, 1.18, 0] },
+          { slot: 'glass', size: [2.34, 0.36, 1.68], pos: [0.15, 1.18, 0] },
           { slot: 'dark', size: [4.7, 0.16, 1.84], pos: [0, 0.4, 0] },
           { slot: 'lamp', size: [0.05, 0.08, 1.4], pos: [-2.31, 0.82, 0] },
           ...wheels(0.34, [-1.4, 1.4], 0.8),
@@ -110,7 +128,7 @@ export function vehicleShape(kind: ParkedVehicleKind): VehicleShape {
   return shapeOf(kind);
 }
 
-const SLOTS: readonly Slot[] = ['body', 'glass', 'dark', 'wheel', 'lamp'];
+const SLOTS: readonly Slot[] = ['body', 'glass', 'dark', 'wheel', 'lamp', 'tail'];
 
 function slotMaterial(slot: Slot): THREE.MeshStandardMaterial {
   switch (slot) {
@@ -123,7 +141,9 @@ function slotMaterial(slot: Slot): THREE.MeshStandardMaterial {
     case 'wheel':
       return new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
     case 'lamp':
-      return new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 1.5 });
+      return new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d8, emissiveIntensity: 2.2 });
+    case 'tail':
+      return new THREE.MeshStandardMaterial({ color: 0x400008, emissive: 0xff1a1a, emissiveIntensity: 2.4 });
   }
 }
 
@@ -180,7 +200,7 @@ export function buildParkedVehicles(placed: readonly PlacedVehicle[], seed: numb
         mesh.setMatrixAt(i, m);
         if (slot === 'body') mesh.setColorAt(i, color.set(PALETTE[colorIndex++ % PALETTE.length]!));
       });
-      mesh.castShadow = slot !== 'lamp';
+      mesh.castShadow = slot !== 'lamp' && slot !== 'tail';
       mesh.receiveShadow = true;
       group.add(mesh);
     }

@@ -933,17 +933,21 @@ export function buildCity(ctx: BiomeContext): Biome {
       const dir: 1 | -1 = k % 3 === 2 ? -1 : 1;
       const kind = trafficKinds[n++ % trafficKinds.length]!;
       const shape = vehicleShape(kind);
-      const g = buildParkedVehicles([{ kind, matrix: new THREE.Matrix4().makeRotationY(Math.PI / 2) }], n * 3);
+      // Vehicle models point their nose along -X; turn it to the body's forward (-Z).
+      const g = buildParkedVehicles([{ kind, matrix: new THREE.Matrix4().makeRotationY(-Math.PI / 2) }], n * 3);
       group.add(g);
-      const body = physics.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -50, 0));
-      const c = physics.world.createCollider(
-        R.ColliderDesc.cuboid(shape.width / 2, shape.height / 2, shape.length / 2)
+      // Velocity-driven kinematic body: it moves smoothly through every physics step, so a bump
+      // only pushes you at the car's real speed (no teleport kicks). Not a stunt obstacle.
+      const body = physics.world.createRigidBody(R.RigidBodyDesc.kinematicVelocityBased().setTranslation(0, -50, 0));
+      const r = 0.15;
+      physics.world.createCollider(
+        R.ColliderDesc.roundCuboid(shape.width / 2 - r, shape.height / 2 - r, shape.length / 2 - r, r)
           .setTranslation(0, shape.height / 2, 0)
           .setCollisionGroups(GROUP_TRAFFIC)
-          .setFriction(0.5),
+          .setFriction(0.3)
+          .setRestitution(0),
         body,
       );
-      physics.obstacles.add(c.handle);
       traffic.push({
         group: g,
         body,
@@ -959,24 +963,36 @@ export function buildCity(ctx: BiomeContext): Biome {
   const pose = new THREE.Vector3();
   const ahead = new THREE.Vector3();
   const tq = new THREE.Quaternion();
-  const placeTraffic = (car: TrafficCar): void => {
+  const vel = new THREE.Vector3();
+  /** Steer the body toward its lane position at `car.s` over the next `dt` (teleport if far / no dt). */
+  const placeTraffic = (car: TrafficCar, dt: number): void => {
     trafficLine.at(car.s, pose, ahead);
-    const rx = -ahead.z;
-    const rz = ahead.x;
-    pose.x += rx * car.lane;
-    pose.z += rz * car.lane;
+    pose.x += -ahead.z * car.lane;
+    pose.z += ahead.x * car.lane;
     const yaw = Math.atan2(-ahead.x * car.dir, -ahead.z * car.dir);
-    tq.setFromAxisAngle(UP, yaw);
-    car.group.position.copy(pose);
-    car.group.quaternion.copy(tq);
-    car.body.setNextKinematicTranslation(pose);
-    car.body.setNextKinematicRotation(tq);
+    const cur = car.body.translation();
+    vel.set(pose.x - cur.x, 0, pose.z - cur.z);
+    if (dt <= 0 || vel.length() > 6) {
+      tq.setFromAxisAngle(UP, yaw);
+      car.body.setTranslation(pose, true);
+      car.body.setRotation(tq, true);
+      car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      car.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    } else {
+      vel.divideScalar(dt);
+      car.body.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
+      const o = car.body.rotation();
+      let dy = yaw - 2 * Math.atan2(o.y, o.w);
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      car.body.setAngvel({ x: 0, y: dy / dt, z: 0 }, true);
+    }
+    // Draw the car exactly where its body is (what you see is what you hit).
+    const t = car.body.translation();
+    const o = car.body.rotation();
+    car.group.position.set(t.x, t.y, t.z);
+    car.group.quaternion.set(o.x, o.y, o.z, o.w);
   };
-  traffic.forEach(placeTraffic);
-  traffic.forEach((c) => {
-    c.body.setTranslation(c.group.position, true);
-    c.body.setRotation(c.group.quaternion, true);
-  });
+  traffic.forEach((c) => placeTraffic(c, 0));
 
   // ---- Sky and light ------------------------------------------------------------
   const sky = new SkyDome(NIGHT.sky);
@@ -1015,15 +1031,18 @@ export function buildCity(ctx: BiomeContext): Biome {
           if (pose.distanceTo(camPos) < 140) {
             car.s = car.dir > 0 ? car.seg.s1 : car.seg.s0;
             car.group.visible = false;
-            car.body.setNextKinematicTranslation({ x: 0, y: -50, z: 0 });
+            car.body.setTranslation({ x: 0, y: -50, z: 0 }, true);
+            car.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
             car.parked = true;
             continue;
           }
           car.s = s;
           car.parked = false;
           car.group.visible = true;
+          placeTraffic(car, 0);
+          continue;
         }
-        if (!car.parked) placeTraffic(car);
+        if (!car.parked) placeTraffic(car, dt);
       }
     },
     dispose() {
