@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { createRng } from '../../core/Random';
 import { SkyDome } from '../Sky';
@@ -22,6 +23,7 @@ export function buildMountain(ctx: BiomeContext): Biome {
   const { physics, renderer } = ctx;
   const group = new THREE.Group();
   group.name = 'mountain';
+  const solids: RAPIER.Collider[] = [];
   const noise = makeNoise(33);
   const grassA = new THREE.Color(0x63ad3e);
   const grassB = new THREE.Color(0x3f8a32);
@@ -53,11 +55,11 @@ export function buildMountain(ctx: BiomeContext): Biome {
     Math.abs(h(x + 3, z) - y) + Math.abs(h(x, z + 3) - y) < 3.5 && y < 90;
   group.add(
     scatter(tierPine(false), mat, Math.round(420 * k), rng, {
-      radius: 650, lines, clearance: 12, heightAt: h, scale: [0.8, 1.7], accept: gentle, sink: 0.3, tints: [0xffffff, 0xd8ffd8, 0xe8f0d0],
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.6, h: 3 }, radius: 650, lines, clearance: 12, heightAt: h, scale: [0.8, 1.7], accept: gentle, sink: 0.3, tints: [0xffffff, 0xd8ffd8, 0xe8f0d0],
       blob: 3.6,
     }),
     scatter(roundTree(0x2f6e2a, 0x9ad34f, 31), mat, Math.round(200 * k), rng, {
-      radius: 600, lines, clearance: 12, heightAt: h, scale: [0.8, 1.4], accept: gentle,
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.6, h: 4.2 }, radius: 600, lines, clearance: 12, heightAt: h, scale: [0.8, 1.4], accept: gentle,
       tints: [0xffffff, 0xffd080, 0xff9a60, 0xfff0a0],
       blob: 4.2,
     }),
@@ -73,7 +75,7 @@ export function buildMountain(ctx: BiomeContext): Biome {
       radius: 450, lines, clearance: 8, near: 50, heightAt: h, scale: [0.8, 1.5], accept: gentle,
     }),
     scatter(rockGeometry(21), new THREE.MeshStandardMaterial({ color: 0x8f8a84, roughness: 1, flatShading: true }), Math.round(180 * k), rng, {
-      radius: 600, lines, clearance: 10, heightAt: h, scale: [1, 4], sink: 0.5, tilt: 0.5,
+      solid: { physics, out: solids, shape: 'ball', r: 0.85 }, radius: 600, lines, clearance: 10, heightAt: h, scale: [1, 4], sink: 0.5, tilt: 0.5,
     }),
   );
   const clouds = new Clouds({ count: Math.round(30 * Math.max(k, 0.5)), radius: [400, 900], height: [170, 280], top: 0xfff1e2, belly: 0xb8a6c8, seed: 33 });
@@ -86,7 +88,7 @@ export function buildMountain(ctx: BiomeContext): Biome {
   applyLighting(renderer, HAZY_DUSK);
   return {
     group,
-    colliders: [terrain.collider],
+    colliders: [terrain.collider, ...solids],
     heightAt: terrain.heightAt,
     update(dt, _e, camera) {
       sky.follow(camera);

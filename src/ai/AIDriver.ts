@@ -21,6 +21,9 @@ const MAX_OFFSET = 4;
  * overtaking, brakes to the speed profile (skill-scaled), times boosts,
  * handles stunts and recovers when stuck or off course. Never air-rolls for show.
  */
+/** Run-up (m) before a stunt when an AI car is put back after falling off it. */
+const RUN_UP = 140;
+
 export class AIDriver {
   readonly actions: InputActions = createEmptyActions();
   readonly tracker: LineTracker;
@@ -216,7 +219,10 @@ export class AIDriver {
     for (let k = i; k >= 0 && d0 - line.distances[k]! < 400; k--) {
       if (line.locked[k]) {
         while (k > 0 && line.locked[k]) k--;
-        i = Math.max(0, k - 20);
+        // Far enough back to build up jump speed again (too close and it falls in every time).
+        const start = line.distances[k]!;
+        while (k > 0 && start - line.distances[k]! < RUN_UP) k--;
+        i = k;
         break;
       }
     }

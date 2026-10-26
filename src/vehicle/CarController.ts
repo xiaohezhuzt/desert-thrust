@@ -704,17 +704,20 @@ export class CarController {
     const tang = rel.addScaledVector(n, -postN);
     const vt = tang.length();
     const dvt = Math.min(vt * 0.35, IMPACT_SCRAPE * (hit + dvn));
-    const impulse = this.tmpJ.copy(n).multiplyScalar(dvn * m);
-    if (vt > 1e-3) impulse.addScaledVector(tang.normalize(), -dvt * m);
-    // A dynamic partner (another car) takes its share; walls and kinematic traffic don't move.
-    const share = ob && ob.isDynamic() ? 0.5 : 1;
-    impulse.multiplyScalar(share);
+    // Walls and kinematic traffic don't give; a loose body (another car, a traffic cone)
+    // shares the impulse by mass, so a cone barely nudges the car and flies off instead.
+    const dynamicPartner = !!ob && ob.isDynamic();
+    const share = dynamicPartner ? ob!.mass() / (m + ob!.mass()) : 1;
+    const impulse = this.tmpJ.copy(n).multiplyScalar(dvn * m * share);
+    if (vt > 1e-3) impulse.addScaledVector(tang.normalize(), -dvt * m * share);
     body.applyImpulseAtPoint({ x: impulse.x, y: impulse.y, z: impulse.z }, { x: p.x, y: p.y, z: p.z }, true);
-    if (ob && ob.isDynamic()) ob.applyImpulseAtPoint({ x: -impulse.x, y: -impulse.y, z: -impulse.z }, { x: p.x, y: p.y, z: p.z }, true);
-    // Hard hits knock the tires loose for a moment.
-    this.impactGrip = Math.min(this.impactGrip, THREE.MathUtils.lerp(0.75, 0.15, THREE.MathUtils.clamp(hit / 25, 0, 1)));
+    // Light loose props get the equal and opposite kick; other cars run this same code for themselves.
+    if (dynamicPartner && ob!.mass() < 300) ob!.applyImpulseAtPoint({ x: -impulse.x, y: -impulse.y, z: -impulse.z }, { x: p.x, y: p.y, z: p.z }, true);
     this.impactCooldown = 0.12;
-    this.onImpact?.(hit, p, n);
+    if (share < 0.2) return;
+    // Hard hits knock the tires loose for a moment.
+    this.impactGrip = Math.min(this.impactGrip, THREE.MathUtils.lerp(0.75, 0.15, THREE.MathUtils.clamp((hit * share) / 25, 0, 1)));
+    this.onImpact?.(hit * share, p, n);
   }
 
   capture(): void {

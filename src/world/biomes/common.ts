@@ -98,6 +98,8 @@ export function scatter(
     tints?: readonly number[];
     /** soft blob shadow radius under each instance (unscaled metres); props don't cast real shadows */
     blob?: number;
+    /** give instances near the course a real collision shape (trunks, rocks…) so cars can't drive through them */
+    solid?: SolidProps;
   },
 ): THREE.Object3D {
   const mesh = new THREE.InstancedMesh(geo, mat, count);
@@ -118,6 +120,7 @@ export function scatter(
     dummy.updateMatrix();
     if (o.tints) mesh.setColorAt(placed, tint.set(o.tints[Math.floor(rng() * o.tints.length)]!));
     mesh.setMatrixAt(placed++, dummy.matrix);
+    if (o.solid && dl < (o.solid.within ?? 160)) addSolid(o.solid, dummy.position, s);
   }
   mesh.count = placed;
   // Real shadow maps would render every instance again; a blob under each is far cheaper.
@@ -141,6 +144,32 @@ export function scatter(
   blobs.renderOrder = 1;
   group.add(blobs);
   return group;
+}
+
+/** Collision for scattered props: an upright cylinder (trunks, cacti, pillars) or a ball (rocks). */
+export interface SolidProps {
+  readonly physics: Physics;
+  /** colliders are pushed here (the biome returns them so the level can remove them) */
+  readonly out: RAPIER.Collider[];
+  readonly shape: 'cylinder' | 'ball';
+  /** radius at scale 1, m */
+  readonly r: number;
+  /** cylinder height at scale 1, m */
+  readonly h?: number;
+  /** only props this close to the course get a body (the rest can't be reached) */
+  readonly within?: number;
+}
+
+function addSolid(o: SolidProps, at: THREE.Vector3, scale: number): void {
+  const R = o.physics.R;
+  const r = o.r * scale;
+  const desc =
+    o.shape === 'ball'
+      ? R.ColliderDesc.ball(r).setTranslation(at.x, at.y, at.z)
+      : R.ColliderDesc.cylinder(((o.h ?? 4) * scale) / 2, r).setTranslation(at.x, at.y + ((o.h ?? 4) * scale) / 2, at.z);
+  const c = o.physics.world.createCollider(desc.setFriction(0.6));
+  o.physics.setSurface(c, 'dirt');
+  o.out.push(c);
 }
 
 /** Simple conifer: trunk + three stacked cones, vertex-coloured. */

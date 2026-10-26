@@ -92,7 +92,8 @@ export class Level {
     this.group.add(this.biome.group);
     this.colliders.push(...this.biome.colliders);
 
-    this.dressing = buildTrackDressing(def, roads.centerLines, DRESSING[def.biome], renderer.currentQuality.tier);
+    this.dressing = buildTrackDressing(def, roads.centerLines, DRESSING[def.biome], renderer.currentQuality.tier, physics);
+    this.colliders.push(...this.dressing.colliders);
     this.group.add(this.dressing.group);
 
     // Roads and most stunt pieces never move: skip per-frame matrix updates for them.

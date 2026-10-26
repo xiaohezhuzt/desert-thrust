@@ -26,6 +26,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
   const { physics, renderer } = ctx;
   const group = new THREE.Group();
   group.name = 'desert';
+  const solids: RAPIER.Collider[] = [];
   const colliders: RAPIER.Collider[] = [];
   const noise = makeNoise(9);
 
@@ -90,7 +91,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
   const lines = ctx.allLines;
   group.add(
     scatter(cactus(), mat, Math.round(220 * k), prng, {
-      radius: 750, lines, clearance: 13, heightAt: terrain.heightAt, scale: [0.8, 1.6], sink: 0.1, tints: [0xffffff, 0xd8f0c8, 0xf0ffe0],
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.8, h: 7 }, radius: 750, lines, clearance: 13, heightAt: terrain.heightAt, scale: [0.8, 1.6], sink: 0.1, tints: [0xffffff, 0xd8f0c8, 0xf0ffe0],
       blob: 1.8,
     }),
     scatter(bush(0x6b6a2c, 0xa8a24a), mat, Math.round(260 * k), prng, {
@@ -101,7 +102,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
       radius: 500, lines, clearance: 9.5, near: 60, heightAt: terrain.heightAt, scale: [0.8, 1.6],
     }),
     scatter(rockGeometry(9), new THREE.MeshStandardMaterial({ color: 0xa8643c, roughness: 1, flatShading: true }), Math.round(160 * k), prng, {
-      radius: 750, lines, clearance: 12, heightAt: terrain.heightAt, scale: [0.8, 3.2], sink: 0.4, tilt: 0.6,
+      solid: { physics, out: solids, shape: 'ball', r: 0.85 }, radius: 750, lines, clearance: 12, heightAt: terrain.heightAt, scale: [0.8, 3.2], sink: 0.4, tilt: 0.6,
     }),
   );
   const clouds = new Clouds({ count: Math.round(28 * Math.max(k, 0.5)), radius: [420, 900], height: [130, 240], top: 0xffe4cf, belly: 0xc98aa0, seed: 5 });
@@ -285,6 +286,9 @@ export function buildDesert(ctx: BiomeContext): Biome {
   for (let z = 480; z > -240; z -= 60) {
     for (const x of [-14, 14]) {
       poles.push(new THREE.CylinderGeometry(0.15, 0.2, 9, 6).translate(x, 4.5, z).toNonIndexed());
+      const pc = physics.world.createCollider(physics.R.ColliderDesc.cylinder(4.5, 0.2).setTranslation(x, terrain.heightAt(x, z) + 4.5, z).setFriction(0.4));
+      physics.setSurface(pc, 'asphalt');
+      colliders.push(pc);
       heads.push(new THREE.BoxGeometry(1.4, 0.3, 0.6).translate(x - Math.sign(x) * 0.6, 9, z).toNonIndexed());
     }
   }
@@ -311,7 +315,7 @@ export function buildDesert(ctx: BiomeContext): Biome {
 
   return {
     group,
-    colliders,
+    colliders: [...colliders, ...solids],
     heightAt: terrain.heightAt,
     update(dt, elapsed, camera) {
       const t = THREE.MathUtils.smoothstep(elapsed, 0, NIGHTFALL);

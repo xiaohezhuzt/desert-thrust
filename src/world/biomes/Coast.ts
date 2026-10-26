@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng } from '../../core/Random';
@@ -33,6 +34,7 @@ export function buildCoast(ctx: BiomeContext): Biome {
   const { physics, renderer, def } = ctx;
   const group = new THREE.Group();
   group.name = 'coast';
+  const solids: RAPIER.Collider[] = [];
   const noise = makeNoise(21);
   const waterLevel = def.waterLevel ?? 0;
 
@@ -87,11 +89,11 @@ export function buildCoast(ctx: BiomeContext): Biome {
       radius: 700, lines, clearance: 10, heightAt: h, scale: [0.9, 1.5], accept: (_x, _z, y) => y > waterLevel + 0.6 && y < 7,
     }),
     scatter(roundTree(0x2f7d2e, 0x8fd14f, 11), mat, Math.round(260 * k), rng, {
-      radius: 750, lines, clearance: 12, heightAt: h, scale: [0.8, 1.5], accept: (_x, _z, y) => y > 5, tints: [0xffffff, 0xe0ffd0, 0xfff0c0],
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.6, h: 4.2 }, radius: 750, lines, clearance: 12, heightAt: h, scale: [0.8, 1.5], accept: (_x, _z, y) => y > 5, tints: [0xffffff, 0xe0ffd0, 0xfff0c0],
       blob: 4.2,
     }),
     scatter(bush(0x2f7a2e, 0x7fcc4c), mat, Math.round(300 * k), rng, {
-      radius: 600, lines, clearance: 9, heightAt: h, scale: [0.6, 1.3], accept: (_x, _z, y) => y > 3.5,
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.4, h: 8 }, radius: 600, lines, clearance: 9, heightAt: h, scale: [0.6, 1.3], accept: (_x, _z, y) => y > 3.5,
       blob: 2.2,
     }),
     scatter(flowerClump(), mat, Math.round(700 * k), rng, {
@@ -191,7 +193,7 @@ export function buildCoast(ctx: BiomeContext): Biome {
 
   return {
     group,
-    colliders: [terrain.collider],
+    colliders: [terrain.collider, ...solids],
     heightAt: terrain.heightAt,
     update(dt, _elapsed, camera) {
       t += dt;

@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRng } from '../../core/Random';
@@ -24,6 +25,7 @@ export function buildSnow(ctx: BiomeContext): Biome {
   const { physics, renderer, def } = ctx;
   const group = new THREE.Group();
   group.name = 'snow';
+  const solids: RAPIER.Collider[] = [];
   const noise = makeNoise(44);
   const snowC = new THREE.Color(0xe8eef7);
   const shade = new THREE.Color(0xb8c6dc);
@@ -67,7 +69,7 @@ export function buildSnow(ctx: BiomeContext): Biome {
   const lines = ctx.allLines;
   group.add(
     scatter(tierPine(true), mat, Math.round(420 * k), rng, {
-      radius: 650, lines, clearance: 14, heightAt: terrain.heightAt, scale: [0.8, 1.7], sink: 0.3,
+      solid: { physics, out: solids, shape: 'cylinder', r: 0.6, h: 3 }, radius: 650, lines, clearance: 14, heightAt: terrain.heightAt, scale: [0.8, 1.7], sink: 0.3,
       blob: 3.6,
     }),
     scatter(bush(0x9fb0c8, 0xffffff), mat, Math.round(200 * k), rng, {
@@ -75,7 +77,7 @@ export function buildSnow(ctx: BiomeContext): Biome {
       blob: 2.2,
     }),
     scatter(snowman(), mat, Math.round(26 * Math.max(k, 0.5)), rng, {
-      radius: 500, lines, clearance: 11, near: 30, heightAt: terrain.heightAt, scale: [0.9, 1.3],
+      solid: { physics, out: solids, shape: 'cylinder', r: 1.2, h: 4 }, radius: 500, lines, clearance: 11, near: 30, heightAt: terrain.heightAt, scale: [0.9, 1.3],
       blob: 1.8,
     }),
   );
@@ -127,7 +129,7 @@ export function buildSnow(ctx: BiomeContext): Biome {
   let t = 0;
   return {
     group,
-    colliders: [terrain.collider],
+    colliders: [terrain.collider, ...solids],
     heightAt: terrain.heightAt,
     update(dt, _e, camera) {
       t += dt;

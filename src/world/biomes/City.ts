@@ -736,7 +736,12 @@ export function buildCity(ctx: BiomeContext): Biome {
   // Night: foliage only catches lamplight.
   treeMat.color.setRGB(0.45, 0.5, 0.45);
   const treeMesh = new THREE.InstancedMesh(keep(roundTree(0x2c5a28, 0x5e8a3e, 5)), treeMat, trees.length);
-  trees.forEach((x, i) => treeMesh.setMatrixAt(i, x));
+  trees.forEach((x, i) => {
+    treeMesh.setMatrixAt(i, x);
+    // Trunk (the tree is scaled ~0.55 across, ~0.7 up).
+    const p = new THREE.Vector3().setFromMatrixPosition(x);
+    solid(p.x, p.y + 1.5, p.z, 0.35, 1.5, 0.35);
+  });
   treeMesh.castShadow = true;
   group.add(treeMesh);
 
@@ -756,6 +761,8 @@ export function buildCity(ctx: BiomeContext): Biome {
   lamps.forEach((x, i) => {
     lampMesh.setMatrixAt(i, x);
     headMesh.setMatrixAt(i, x);
+    const p = new THREE.Vector3().setFromMatrixPosition(x);
+    solid(p.x, p.y + 4.25, p.z, 0.15, 4.25, 0.15);
   });
   lampMesh.castShadow = true;
   group.add(lampMesh, headMesh);
@@ -817,6 +824,8 @@ export function buildCity(ctx: BiomeContext): Biome {
   signals.forEach((x, i) => {
     signalMesh.setMatrixAt(i, x);
     lightMesh.setMatrixAt(i, x);
+    const p = new THREE.Vector3().setFromMatrixPosition(x);
+    solid(p.x, p.y + 3, p.z, 0.16, 3, 0.16);
   });
   signalMesh.count = lightMesh.count = signals.length;
   group.add(signalMesh, lightMesh);
@@ -826,6 +835,7 @@ export function buildCity(ctx: BiomeContext): Biome {
 
   // ---- Road works chicane ---------------------------------------------------------
   const blink: THREE.Mesh[] = [];
+  const cones: { mesh: THREE.Mesh; body: RAPIER.RigidBody }[] = [];
   {
     const stripe = keep(
       canvasTexture(128, (c, sz) => {
@@ -852,7 +862,8 @@ export function buildCity(ctx: BiomeContext): Biome {
         new THREE.BoxGeometry(3, 0.55, 0.32).translate(0, 0.62, 0).toNonIndexed(),
       ]) ?? new THREE.BufferGeometry(),
     );
-    const cone = keep(new THREE.ConeGeometry(0.2, 0.7, 12).translate(0, 0.35, 0));
+    // Centred cone (the physics body sits at its middle).
+    const cone = keep(new THREE.ConeGeometry(0.2, 0.7, 12));
     const lampGeo = keep(new THREE.SphereGeometry(0.12, 10, 8));
     for (const [z, side] of CHICANE) {
       // Barrier line from the kerb to the centre line.
@@ -875,9 +886,18 @@ export function buildCity(ctx: BiomeContext): Biome {
       // Cones tapering in ahead of each barrier.
       for (let k = 1; k <= 4; k++) {
         const c = new THREE.Mesh(cone, coneMat);
-        c.position.set(x0 - side * (k * 1.9), 0, z + 4 + k * 2.2);
+        const cxp = x0 - side * (k * 1.9);
+        const czp = z + 4 + k * 2.2;
+        c.position.set(cxp, 0.35, czp);
         c.castShadow = true;
         group.add(c);
+        // Light loose cone: a car knocks it flying instead of passing through it.
+        const body = physics.world.createRigidBody(
+          R.RigidBodyDesc.dynamic().setTranslation(cxp, 0.36, czp).setLinearDamping(0.3).setAngularDamping(0.4).setCanSleep(true),
+        );
+        physics.world.createCollider(R.ColliderDesc.cone(0.35, 0.2).setDensity(25).setFriction(0.7).setRestitution(0.3), body);
+        body.sleep();
+        cones.push({ mesh: c, body });
       }
     }
     // Lit arrow board warning of the works ahead (both pavements).
@@ -910,6 +930,7 @@ export function buildCity(ctx: BiomeContext): Biome {
       pole.scale.set(0.12, 1.8, 0.12);
       pole.position.set(board.position.x, 0.9, 278.05);
       group.add(pole);
+      solid(board.position.x, 1.6, 278, 1.2, 1.6, 0.12);
     }
   }
 
@@ -1013,6 +1034,13 @@ export function buildCity(ctx: BiomeContext): Biome {
       sky.follow(camera);
       camPos.copy(camera.position);
       peds.update(dt, camPos);
+      for (const c of cones) {
+        if (c.body.isSleeping()) continue;
+        const t = c.body.translation();
+        const o = c.body.rotation();
+        c.mesh.position.set(t.x, t.y, t.z);
+        c.mesh.quaternion.set(o.x, o.y, o.z, o.w);
+      }
       blinkT += dt;
       const on = Math.floor(blinkT * 2.2) % 2 === 0;
       blink.forEach((l, i) => (l.visible = on !== (i % 2 === 0)));
@@ -1048,6 +1076,7 @@ export function buildCity(ctx: BiomeContext): Biome {
     dispose() {
       peds.dispose();
       for (const c of traffic) physics.world.removeRigidBody(c.body);
+      for (const c of cones) physics.world.removeRigidBody(c.body);
       disposables.forEach((d) => d.dispose());
     },
   };

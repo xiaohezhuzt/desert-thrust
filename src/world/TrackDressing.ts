@@ -1,4 +1,7 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import type { Surface } from '../config/tuning';
+import type { Physics } from '../core/Physics';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { LevelDef, RoadDef } from '../config/levels';
 import type { QualityTier } from '../config/quality';
@@ -21,6 +24,8 @@ export interface DressingStyle {
 
 export interface TrackDressing {
   readonly group: THREE.Group;
+  /** collision for the solid pieces (tyre walls, boards, poles, arches, grandstand) */
+  readonly colliders: RAPIER.Collider[];
   update(dt: number): void;
   dispose(): void;
 }
@@ -102,7 +107,19 @@ export function buildTrackDressing(
   lines: readonly THREE.Vector3[][],
   style: DressingStyle,
   tier: QualityTier,
+  physics: Physics,
 ): TrackDressing {
+  const colliders: RAPIER.Collider[] = [];
+  const R = physics.R;
+  const solid = (desc: RAPIER.ColliderDesc, surface: Surface = 'asphalt'): void => {
+    const c = physics.world.createCollider(desc);
+    physics.setSurface(c, surface);
+    colliders.push(c);
+  };
+  const yawQ = (yaw: number): { x: number; y: number; z: number; w: number } => {
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    return { x: q.x, y: q.y, z: q.z, w: q.w };
+  };
   const group = new THREE.Group();
   group.name = 'track-dressing';
   const rng = createRng(def.id * 31 + 7);
@@ -252,6 +269,13 @@ export function buildTrackDressing(
       // Face oncoming traffic; arrows point into the turn.
       dummy.position.set(at.x, s.p.y + base + 1.85, at.z);
       dummy.rotation.set(0, Math.atan2(-s.fwd.x, -s.fwd.z), 0);
+      // Board on its post: solid from the ground to the top of the board.
+      solid(
+        R.ColliderDesc.cuboid(1.3, (base + 2.5) / 2, 0.1)
+          .setTranslation(at.x, s.p.y + (base + 2.5) / 2, at.z)
+          .setRotation(yawQ(Math.atan2(-s.fwd.x, -s.fwd.z)))
+          .setFriction(0.5),
+      );
       dummy.scale.set(side > 0 ? -1 : 1, 1, 1);
       dummy.updateMatrix();
       boards.push(dummy.matrix.clone());
@@ -262,6 +286,8 @@ export function buildTrackDressing(
       if (!road.barriers && !road.elevated && !low) {
         for (let k = -1; k <= 1; k++) {
           const t = s.p.clone().addScaledVector(s.right, side * (hw + 7)).addScaledVector(s.fwd, k * 1.1);
+          // A stack of three tyres: springy, so it bounces you back more than concrete would.
+          solid(R.ColliderDesc.cylinder(0.66, 0.72).setTranslation(t.x, s.p.y - 0.25 + 0.66, t.z).setFriction(0.9).setRestitution(0.55), 'dirt');
           for (let h = 0; h < 3; h++) {
             dummy.position.set(t.x, s.p.y - 0.25 + 0.22 + h * 0.44, t.z);
             dummy.rotation.set(0, 0, 0);
@@ -322,6 +348,7 @@ export function buildTrackDressing(
         }
         const at = s.p.clone().addScaledVector(s.right, side * (hw + 6));
         at.y = s.p.y - 0.3;
+        solid(R.ColliderDesc.cylinder(3.5, 0.16).setTranslation(at.x, at.y + 3.5, at.z).setFriction(0.4));
         dummy.position.copy(at);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
@@ -385,6 +412,8 @@ export function buildTrackDressing(
     for (const side of [-1, 1]) {
       const pillar = new THREE.Mesh(keep(new THREE.BoxGeometry(1.4, 10, 1.4)), pillarMat);
       pillar.position.set(side * span, 5, 0);
+      const world = new THREE.Vector3(side * span, 5, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), heading).add(pos);
+      solid(R.ColliderDesc.cuboid(0.7, 5, 0.7).setTranslation(world.x, world.y, world.z).setRotation(yawQ(heading)).setFriction(0.5));
       pillar.castShadow = true;
       g.add(pillar);
     }
@@ -447,6 +476,8 @@ export function buildTrackDressing(
       step.position.set(row * 3.2, (1 + row * 1.1) / 2, 0);
       step.receiveShadow = true;
       stand.add(step);
+      const sw = new THREE.Vector3(row * 3.2, (1 + row * 1.1) / 2, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), def.start.heading).add(new THREE.Vector3(base.x, start.y - 0.3, base.z));
+      solid(R.ColliderDesc.cuboid(2, (1 + row * 1.1) / 2, 23).setTranslation(sw.x, sw.y, sw.z).setRotation(yawQ(def.start.heading)));
     }
     const roof = new THREE.Mesh(keep(new THREE.BoxGeometry(15, 0.4, 48)), keep(new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.45, metalness: 0.6 })));
     roof.position.set(5, 8.5, 0);
@@ -481,6 +512,7 @@ export function buildTrackDressing(
   const m = new THREE.Matrix4();
   return {
     group,
+    colliders,
     update(dt) {
       t += dt;
       balloons.base.forEach((b, i) => {

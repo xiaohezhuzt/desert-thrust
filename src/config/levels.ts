@@ -319,7 +319,7 @@ export const LEVELS: readonly LevelDef[] = [
         type: 'kicker',
         position: [-222, 3, -285],
         heading: TO_MINUS_X,
-        params: { width: 9, length: 14, angleDeg: 17, approachSpeed: 36 },
+        params: { width: 9, length: 14, angleDeg: 17, approachSpeed: 30 },
       },
     ],
     gates: [

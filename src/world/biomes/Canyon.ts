@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { createRng } from '../../core/Random';
 import { SkyDome } from '../Sky';
@@ -31,6 +32,7 @@ export function buildCanyon(ctx: BiomeContext): Biome {
   const { physics, renderer } = ctx;
   const group = new THREE.Group();
   group.name = 'canyon';
+  const solids: RAPIER.Collider[] = [];
   const noise = makeNoise(55);
   const a = new THREE.Color(0xc65a2c);
   const b = new THREE.Color(0xeea063);
@@ -56,7 +58,7 @@ export function buildCanyon(ctx: BiomeContext): Biome {
   const rockMat = new THREE.MeshStandardMaterial({ color: 0xb85a32, roughness: 1, flatShading: true });
   group.add(
     scatter(hoodooGeometry(), rockMat, 70, rng, {
-      radius: 600,
+      solid: { physics, out: solids, shape: 'cylinder', r: 3.6, h: 22 }, radius: 600,
       lines: ctx.allLines,
       clearance: 16,
       heightAt: terrain.heightAt,
@@ -86,14 +88,14 @@ export function buildCanyon(ctx: BiomeContext): Biome {
   const flat = (_x: number, _z: number, y: number): boolean => y < 10;
   group.add(
     scatter(mesa(), pmat, 18, rng, { radius: 800, lines, clearance: 120, heightAt: terrain.heightAt, scale: [0.9, 2.2], sink: 0.05 }),
-    scatter(cactus(), pmat, Math.round(160 * k), rng, { radius: 600, lines, clearance: 12, heightAt: terrain.heightAt, scale: [0.8, 1.5], accept: flat, blob: 1.8 }),
+    scatter(cactus(), pmat, Math.round(160 * k), rng, { solid: { physics, out: solids, shape: 'cylinder', r: 0.8, h: 7 }, radius: 600, lines, clearance: 12, heightAt: terrain.heightAt, scale: [0.8, 1.5], accept: flat, blob: 1.8 }),
     scatter(bush(0x7a6a2a, 0xc0a84a), pmat, Math.round(220 * k), rng, { radius: 600, lines, clearance: 10, heightAt: terrain.heightAt, scale: [0.6, 1.2], blob: 2.2 }),
     scatter(flowerClump(), pmat, Math.round(400 * k), rng, {
       radius: 450, lines, clearance: 10, near: 40, heightAt: terrain.heightAt, scale: [0.9, 1.4], accept: flat,
       tints: [0xffd23b, 0xff8a3b, 0xff5a5a, 0xffffff],
     }),
     scatter(rockGeometry(31), new THREE.MeshStandardMaterial({ color: 0xb8653a, roughness: 1, flatShading: true }), Math.round(200 * k), rng, {
-      radius: 650, lines, clearance: 11, heightAt: terrain.heightAt, scale: [0.8, 3.5], sink: 0.4, tilt: 0.6,
+      solid: { physics, out: solids, shape: 'ball', r: 0.85 }, radius: 650, lines, clearance: 11, heightAt: terrain.heightAt, scale: [0.8, 3.5], sink: 0.4, tilt: 0.6,
     }),
   );
   const clouds = new Clouds({ count: Math.round(28 * Math.max(k, 0.5)), radius: [400, 900], height: [160, 260], top: 0xfff0e0, belly: 0xe09a90, seed: 55 });
@@ -106,7 +108,7 @@ export function buildCanyon(ctx: BiomeContext): Biome {
   applyLighting(renderer, SUNRISE);
   return {
     group,
-    colliders: [terrain.collider],
+    colliders: [terrain.collider, ...solids],
     heightAt: terrain.heightAt,
     update(dt, _e, camera) {
       sky.follow(camera);
