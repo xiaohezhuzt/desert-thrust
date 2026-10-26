@@ -8,6 +8,8 @@ import { toVec } from '../world/TrackBuilder';
 
 const GRADE_RANK: Record<LandingGrade, number> = { CRASH: 0, BAD: 1, GOOD: 2, PERFECT: 3 };
 const COUNTDOWN = 3;
+/** How long a stunt crash plays out before respawning at the checkpoint, s. */
+const CRASH_PLAYOUT = 1.4;
 const RESTART_DELAY = 2.8;
 
 export type RunPhase = 'waiting' | 'countdown' | 'racing' | 'finished' | 'failed';
@@ -19,6 +21,8 @@ interface GateState {
   grade: LandingGrade | null;
   wasInverted: boolean;
   wasOnWall: boolean;
+  /** seconds left of a crash playing out (the car bounces and tumbles) before the retry */
+  crashT: number;
 }
 
 export interface RunResult {
@@ -114,7 +118,7 @@ export class Campaign {
         car: d.car,
       })),
     ];
-    this.gates = def.gates.map((g) => ({ def: g, status: 'pending', grade: null, wasInverted: false, wasOnWall: false }));
+    this.gates = def.gates.map((g) => ({ def: g, status: 'pending', grade: null, wasInverted: false, wasOnWall: false, crashT: 0 }));
   }
 
   /** Seconds since the 3-2-1 began (0..COUNTDOWN), for animations that must finish by GO. */
@@ -146,6 +150,7 @@ export class Campaign {
     for (const g of this.gates) {
       g.status = 'pending';
       g.grade = null;
+      g.crashT = 0;
     }
     this.placeOnGrid();
   }
@@ -320,6 +325,12 @@ export class Campaign {
 
   private updateGate(gate: GateState, landing: LandingResult | null, dt: number): void {
     const d = gate.def;
+    if (gate.crashT > 0) {
+      // Let the crash play out with real physics, then go back to the checkpoint.
+      gate.crashT -= dt;
+      if (gate.crashT <= 0) this.failGate(gate, 'CRASH', `撞上了${d.name}的车辆`);
+      return;
+    }
     const inside = insideBox(this.car.simPosition, d.center, d.halfSize, d.heading);
     if (gate.status === 'pending') {
       if (inside) {
@@ -332,7 +343,8 @@ export class Campaign {
     if (this.car.onAdhesive && this.car.upVector.y < -0.5) gate.wasInverted = true;
     if (this.car.onAdhesive && Math.abs(this.car.upVector.y) < 0.4) gate.wasOnWall = true;
     if (this.car.touchingAny(this.obstacles)) {
-      this.failGate(gate, 'CRASH', `撞上了${d.name}的车辆`);
+      gate.crashT = CRASH_PLAYOUT;
+      this.events.banner('💥 CRASH!', `撞上了${d.name}的车辆`, 'bad', CRASH_PLAYOUT);
       return;
     }
     if (d.pass === 'ride') {
@@ -395,6 +407,7 @@ export class Campaign {
 
   private failGate(gate: GateState, title: string, detail: string): void {
     gate.status = 'pending';
+    gate.crashT = 0;
     this.outsideGrounded = 0;
     if (this.retriesLeft <= 0) {
       this.failLevel(title, '重试次数用完，本关重来');

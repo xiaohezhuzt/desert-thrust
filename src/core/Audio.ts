@@ -264,6 +264,17 @@ export class Audio {
     if (grade === 'CRASH') this.blip(t, 110, 0.25, 'sawtooth');
   }
 
+  /** Body hitting a wall / car: a thump plus metallic crunch, scaled by impact strength (0..1). */
+  impact(strength: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const k = Math.min(Math.max(strength, 0), 1);
+    this.thump(t, 0.35 + 0.65 * k);
+    this.burst(t, 0.2 + 0.5 * k, 1600 + 1400 * k, 0.12 + 0.25 * k);
+    if (k > 0.45) this.blip(t, 85, 0.18, 'sawtooth');
+  }
+
   /** Short UI / event tones. */
   cue(kind: 'count' | 'go' | 'pass' | 'fail' | 'jump'): void {
     const ctx = this.ctx;

@@ -54,6 +54,10 @@ export interface CarGeometry {
 
 const DEFAULT_GEOMETRY: CarGeometry = { wheelRadius: T.wheelRadius, hardpointLift: 0, chassisLift: 0 };
 const WORLD_DOWN = new THREE.Vector3(0, -1, 0);
+/** Approach speeds below this (m/s) are gentle contacts, not crashes. */
+const IMPACT_MIN_SPEED = 1.8;
+/** Scraping friction coefficient against walls and other cars. */
+const IMPACT_SCRAPE = 0.15;
 
 /** Current thruster activity, 0..1, for effects and audio. */
 export interface ThrustState {
@@ -148,6 +152,17 @@ export class CarController {
   private readonly springScale: number;
 
   private chassis: RAPIER.Collider | null = null;
+  // ---- Impacts -------------------------------------------------------------
+  private readonly preVel = new THREE.Vector3();
+  private readonly tmpN = new THREE.Vector3();
+  private readonly tmpP = new THREE.Vector3();
+  private readonly tmpV = new THREE.Vector3();
+  private readonly tmpJ = new THREE.Vector3();
+  /** tire grip multiplier right after a crash (tires skid instead of pinning the car), recovers to 1 */
+  private impactGrip = 1;
+  private impactCooldown = 0;
+  /** Fired on a real hit (wall, barrier, building, car): impact speed m/s, contact point, push normal. */
+  onImpact: ((speed: number, point: THREE.Vector3, normal: THREE.Vector3) => void) | null = null;
   private queryGroups: number | undefined = undefined;
 
   /** AI racers ignore city traffic (it is only there to get in the player's way). */
@@ -344,7 +359,7 @@ export class CarController {
       w.spinRate = vLong / this.geom.wheelRadius;
 
       const surfaceGrip = this.perf.offroad ? THREE.MathUtils.lerp(SURFACE_GRIP[w.surface], 1, 0.6) : SURFACE_GRIP[w.surface];
-      const maxF = T.tireMu * this.perf.gripScale * surfaceGrip * w.load;
+      const maxF = T.tireMu * this.perf.gripScale * surfaceGrip * w.load * this.impactGrip;
       const stopCap = (Math.abs(vLong) * this.quarterMass) / dt;
 
       // Longitudinal.
@@ -405,6 +420,11 @@ export class CarController {
     }
     if (this.airborne) this.airControl(dt, input);
     this.trackSafety(dt, speed);
+    // Velocity going into the physics step, to judge impacts afterwards (see collide()).
+    const v = body.linvel();
+    this.preVel.set(v.x, v.y, v.z);
+    this.impactGrip = Math.min(1, this.impactGrip + dt * 1.6);
+    this.impactCooldown = Math.max(0, this.impactCooldown - dt);
   }
 
   /** Stick to loop tracks: pull along the averaged ground normal. */
@@ -630,7 +650,75 @@ export class CarController {
   }
 
   /** Record the post-step pose for interpolation. Call after the physics step. */
+  /**
+   * Realistic crash response. The rigid-body solver alone stops the chassis dead against a
+   * wall (low restitution keeps landings and loops stable), and the tires then pin it. After
+   * each step, a real side/front/rear hit gets: a rebound along the contact normal (more
+   * elastic at low speed, crumpling at high speed), scraping friction along the surface, both
+   * applied at the contact point so off-centre hits spin the car, and a moment of reduced
+   * tire grip so it can skid and rotate instead of sticking.
+   */
+  private collide(): void {
+    const col = this.chassis;
+    if (!col || this.impactCooldown > 0) return;
+    const world = this.physics.world;
+    let best: { vn: number; other: RAPIER.Collider; n: THREE.Vector3; p: THREE.Vector3 } | null = null;
+    world.contactPairsWith(col, (other) => {
+      world.contactPair(col, other, (manifold, flipped) => {
+        if (manifold.numSolverContacts() === 0) return;
+        const raw = manifold.normal();
+        // Normal from the car into the other shape; we want the push direction (other → car).
+        const sign = flipped ? 1 : -1;
+        const n = this.tmpN.set(raw.x * sign, raw.y * sign, raw.z * sign);
+        // Skip the surface we're driving on (bottoming out, loops, wall rides) and floors/roofs.
+        if (n.dot(this.up) > 0.55 || Math.abs(n.y) > 0.8) return;
+        // Centre of the contact patch (a flat hit touches along a whole edge, not one corner).
+        const p = this.tmpP.set(0, 0, 0);
+        const k = manifold.numSolverContacts();
+        for (let i = 0; i < k; i++) {
+          const cp = manifold.solverContactPoint(i);
+          if (cp) p.add(this.tmpV.set(cp.x, cp.y, cp.z));
+        }
+        p.divideScalar(k);
+        // Approach speed at the contact, relative to the other body (moving traffic, other cars).
+        const ob = other.parent();
+        const ov = ob ? ob.linvel() : { x: 0, y: 0, z: 0 };
+        const vn = (this.preVel.x - ov.x) * n.x + (this.preVel.y - ov.y) * n.y + (this.preVel.z - ov.z) * n.z;
+        if (vn < -IMPACT_MIN_SPEED && (!best || vn < best.vn)) best = { vn, other, n: n.clone(), p: p.clone() };
+      });
+    });
+    if (!best) return;
+    const { vn, other, n, p } = best as { vn: number; other: RAPIER.Collider; n: THREE.Vector3; p: THREE.Vector3 };
+    const hit = -vn;
+    const body = this.body;
+    const m = this.mass;
+    const ob = other.parent();
+    const ov = ob ? ob.linvel() : { x: 0, y: 0, z: 0 };
+    const v = body.linvel();
+    const rel = this.tmpV.set(v.x - ov.x, v.y - ov.y, v.z - ov.z);
+    // Rebound: restitution falls from ~0.45 (light knock) to ~0.2 (big crash, the body crumples).
+    const e = THREE.MathUtils.lerp(0.45, 0.2, THREE.MathUtils.clamp(hit / 35, 0, 1));
+    const postN = rel.dot(n);
+    const dvn = Math.max(0, e * hit - postN);
+    // Scrape: kinetic friction along the surface, proportional to how hard we hit.
+    const tang = rel.addScaledVector(n, -postN);
+    const vt = tang.length();
+    const dvt = Math.min(vt * 0.35, IMPACT_SCRAPE * (hit + dvn));
+    const impulse = this.tmpJ.copy(n).multiplyScalar(dvn * m);
+    if (vt > 1e-3) impulse.addScaledVector(tang.normalize(), -dvt * m);
+    // A dynamic partner (another car) takes its share; walls and kinematic traffic don't move.
+    const share = ob && ob.isDynamic() ? 0.5 : 1;
+    impulse.multiplyScalar(share);
+    body.applyImpulseAtPoint({ x: impulse.x, y: impulse.y, z: impulse.z }, { x: p.x, y: p.y, z: p.z }, true);
+    if (ob && ob.isDynamic()) ob.applyImpulseAtPoint({ x: -impulse.x, y: -impulse.y, z: -impulse.z }, { x: p.x, y: p.y, z: p.z }, true);
+    // Hard hits knock the tires loose for a moment.
+    this.impactGrip = Math.min(this.impactGrip, THREE.MathUtils.lerp(0.75, 0.15, THREE.MathUtils.clamp(hit / 25, 0, 1)));
+    this.impactCooldown = 0.12;
+    this.onImpact?.(hit, p, n);
+  }
+
   capture(): void {
+    this.collide();
     this.prevPos.copy(this.currPos);
     this.prevQuat.copy(this.currQuat);
     const t = this.body.translation();

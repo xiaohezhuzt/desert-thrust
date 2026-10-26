@@ -11,6 +11,7 @@ import { KeyboardInput } from '../input/KeyboardInput';
 import { TiltInput } from '../input/TiltInput';
 import { TouchInput } from '../input/TouchInput';
 import { GroundFX } from '../fx/GroundFX';
+import { ParticleSystem } from '../fx/ParticleSystem';
 import { Audio } from './Audio';
 import { Campaign, insideBox, type RunResult } from '../modes/Campaign';
 import { DragRun, SIXTY_MPH } from '../modes/DragRun';
@@ -100,6 +101,7 @@ export class Game {
   private readonly carRoot: THREE.Object3D;
   private readonly carBody: THREE.Object3D;
   private readonly headlight: THREE.SpotLight;
+  private readonly sparks: ParticleSystem;
   private readonly chase: ChaseCamera;
   private readonly thrusters: Thrusters | null;
   private readonly landing = new LandingJudge();
@@ -210,6 +212,30 @@ export class Game {
     this.tilt = new TiltInput(this.touchControls);
     this.input.add(this.tilt);
     this.groundFx = new GroundFX(this.renderer.scene, QUALITY[this.tier].maxParticles, this.tier);
+    // Crash feedback for the player's car: sparks off the contact point, crunch, camera shake.
+    this.sparks = new ParticleSystem(240, true);
+    this.renderer.scene.add(this.sparks.points);
+    this.car.onImpact = (hit, point, normal) => {
+      if (this.session?.kind === 'menu') return;
+      const k = THREE.MathUtils.clamp((hit - 1.8) / 18, 0, 1);
+      this.audio.impact(k);
+      this.chase.addShake(0.25 + k * 0.9);
+      const n = Math.round(8 + k * 40);
+      for (let i = 0; i < n; i++) {
+        const sp = 3 + Math.random() * (5 + hit * 0.4);
+        this.sparks.emit(
+          point.x, point.y + 0.1, point.z,
+          normal.x * sp + (Math.random() - 0.5) * 6,
+          Math.random() * 4 + 1,
+          normal.z * sp + (Math.random() - 0.5) * 6,
+          0.25 + Math.random() * 0.35,
+          0.12, 0.03,
+          1.0, 0.62 + Math.random() * 0.25, 0.25,
+          1,
+          point.y - 0.6,
+        );
+      }
+    };
     this.input.onDeviceChange = (d) => this.applyDevice(d);
     this.applyDevice(this.input.activeDevice);
     this.hud.setAutoThrottle(this.touchInput.autoThrottle);
@@ -971,6 +997,8 @@ export class Game {
     const p = this.car.renderPosition;
     const depth = s?.level ? s.level.waterDepthAt(p.x, p.z) : 0;
     this.groundFx.setViewport(this.renderer.drawingHeight, cam.fov);
+    this.sparks.setViewport(this.renderer.drawingHeight, this.renderer.camera.fov);
+    this.sparks.update(frameDt, 1.2, -14);
     this.groundFx.update(frameDt, this.car.wheelStates, speed, p.y < (s?.level?.def.waterLevel ?? -1e9) + 0.6 ? depth : 0, this.carRight);
 
     // Boost zoom blur, plus a speed blur on the high tier.
